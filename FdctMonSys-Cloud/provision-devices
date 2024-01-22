@@ -1,0 +1,145 @@
+#!/bin/bash
+#
+#  curl commands to reload the data from the previous tutorial
+#
+#
+
+set -e
+
+
+
+
+printf "⏳ Provisionamento dos dispositivos \n"
+
+
+#
+# Cria um grupo de serviço para os dispositivos IoT
+#
+
+printf "\nCria conexão entre IoT Agent e OrionCB\n"
+curl -iX POST \
+  'http://localhost:4041/iot/services' \
+  -H 'Content-Type: application/json' \
+  -H 'fiware-service: Fundacentro' \
+  -H 'fiware-servicepath: /' \
+  -d '{
+ "services": [
+   {
+     "apikey":      "19662024",
+     "cbroker":     "http://orion:1026",
+     "entity_type": "MeteorStation",
+     "resource":    ""
+   }
+ ]
+}'
+
+
+sleep 3;
+####################################################
+#
+# Provisionando os sensores do Rasp no Datacenter
+#
+
+
+# Sensor de temperatura: 03303
+# Sensor de umidade: 03304
+# Presença (movimento): 03302
+# Concentração de particulas (detector de fumaça): 03325
+
+# 1 sensor de temperatura, 1 sensor de umidade, 1 sensor de presença, 1 sensor de fumaça
+
+
+printf "\nCria dispositivo IoT ID b827eb00f6d0 no IoT Agent (que replica para o OrionCB)\n"
+curl -iX POST \
+  'http://localhost:4041/iot/devices' \
+  -H 'Content-Type: application/json' \
+  -H 'fiware-service: Fundacentro' \
+  -H 'fiware-servicepath: /' \
+  -d '{
+ "devices": [
+   {
+     "device_id":   "b827eb00f6d0",
+     "entity_name": "b827eb00f6d0",
+     "entity_type": "Raspberry",
+     "protocol":    "PDI-IoTA-UltraLight",
+     "transport":   "MQTT",
+     "apikey":      "19662024",
+     "timezone":    "America/Sao_Paulo",
+     "commands": [
+         {"name": "033030", "type": "command"},
+         {"name": "033040", "type": "command"},
+         {"name": "033020", "type": "command"},
+         {"name": "033250", "type": "command"},
+         {"name": "033110", "type": "command"},
+         {"name": "033111", "type": "command"}
+     ],
+     "attributes": [
+         {"object_id": "033030", "name": "033030", "type": "actual_temp"},
+         {"object_id": "033040", "name": "033040", "type": "actual_umid"},
+         {"object_id": "033020", "name": "033020", "type": "actual_presence"},
+         {"object_id": "033250", "name": "033250", "type": "actual_smoke"}
+     ],
+     "static_attributes": [
+         {"name": "FdctSensors", "type": "Relationship", "value": "FdctDatacenter"}
+     ]
+   }
+ ]
+}'
+
+
+sleep 3;
+####################################################
+#
+# Confere provisionamento
+#
+
+echo "\n\nLista de dispositivos: \n"
+curl -X GET \
+  'http://localhost:4041/iot/devices' \
+  -H 'fiware-service: Fundacentro' \
+  -H 'fiware-servicepath: /'
+
+
+sleep 3;
+
+echo "\n\nEnvio de medição dummy via MQTT para testes \n"
+#abrir mosquitto_sub -h localhost -t "#" em outro terminal para ver a mensagem MQTT
+mosquitto_pub -h localhost -t "/ul/19662024/b827eb00f6d0/attrs" -m '033030|23.123'
+
+
+sleep 3;
+
+echo "\n\nConfere medição dummy enviada \n"
+curl -X GET \
+  'http://localhost:1026/v2/entities/b827eb00f6d0?type=Raspberry' \
+  -H 'fiware-service: Fundacentro' \
+  -H 'fiware-servicepath: /' | python3 -m json.tool
+
+
+echo "\n\nNotifica Cygnus de toda notificação recebida pelo Orion\n"
+curl -iX POST \
+  'http://localhost:1026/v2/subscriptions' \
+  -H 'Content-Type: application/json' \
+  -H 'fiware-service: Fundacentro' \
+  -H 'fiware-servicepath: /' \
+  -d '{
+  "description": "Notify Cygnus MySQL of all context changes",
+  "subject": {
+    "entities": [
+      {
+        "idPattern": ".*"
+      }
+    ]
+  },
+  "notification": {
+    "http": {
+      "url": "http://cygnus:5050/notify"
+    }
+  },
+  "throttling": 5
+}'
+
+
+
+
+echo -e " \033[1;32mdone\033[0m"
