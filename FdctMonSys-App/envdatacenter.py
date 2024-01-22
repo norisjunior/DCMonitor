@@ -109,7 +109,7 @@ Connected = False
 transmission_delay = 30
 
 
-###################################################################################
+################################################################################
 # Funções para conexão com MQTT Broker:
 #Conexão com o MQTT Broker
 def on_connect(client, userdata, flags, rc):
@@ -164,6 +164,7 @@ def on_publish():
 
     ###################### Coletando medições de temperatura e umidade:
     #Verifica distância
+    print("\nMedições do sensor HC-SR04:")
     dist = distance()
     print(f"Distância até a porta: %0.2f cm" % dist)
 
@@ -191,6 +192,7 @@ def on_publish():
     print(f"presence_notify: %s" % presence_notify)
 
     payload_presence = '033020|%d' % presence_notify
+    print('PayloadPresence={}'.format(payload_presence))
 
 
     #Transmite temperatura para a plataforma FIWARE
@@ -203,9 +205,11 @@ def on_publish():
     time.sleep(3)
     client.publish(pub_topic, payload_presence)
 
+    # END on_publish() #########################################################
 
-#########################################################################################
-#########################################################################################
+
+################################################################################
+################################################################################
 #Inicialização do app:
 
 if __name__ == "__main__":
@@ -217,7 +221,7 @@ if __name__ == "__main__":
     while Connected != True:    #Wait for connection
         time.sleep(0.1)
 
-    #####################################################################################
+    ############################################################################
     #Uma vez conectado no MQTT, inicia as transmissões sem interrupção
 
     try:
