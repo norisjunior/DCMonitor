@@ -37,6 +37,7 @@ import uuid
 
 ######imports gerais
 import time
+import datetime
 import os
 import random
 
@@ -46,18 +47,50 @@ import paho.mqtt.client as mqtt
 
 
 ################Configurações dos sensores
+######GPIO configs
+GPIO.setmode(GPIO.BCM)
 
 ######DHT11 config
 dht_sensor = Adafruit_DHT.DHT11
 dht_sensor_pin = 26
 
 ######MQ2 config
-GPIO.setmode(GPIO.BCM)
 mq2_do_pin = 4
 GPIO.setup(mq2_do_pin, GPIO.IN)
 
+######HC-SR04
+dist_trig = 17 #cabo verde
+dist_echo = 27 #cabo amarelo
+GPIO.setup(dist_trig, GPIO.OUT)
+GPIO.setup(dist_echo, GPIO.IN)
 
+#Função de medição de distância
+def distance():
+    # set Trigger to HIGH
+    GPIO.output(dist_trig, True)
 
+    # set Trigger after 0.01ms to LOW
+    time.sleep(0.00001)
+    GPIO.output(dist_trig, False)
+
+    StartTime = time.time()
+    StopTime = time.time()
+
+    # save StartTime
+    while GPIO.input(dist_echo) == 0:
+        StartTime = time.time()
+
+    # save time of arrival
+    while GPIO.input(dist_echo) == 1:
+        StopTime = time.time()
+
+    # time difference between start and arrival
+    TimeElapsed = StopTime - StartTime
+    # multiply with the sonic speed (34300 cm/s)
+    # and divide by 2, because there and back
+    distance = (TimeElapsed * 34300) / 2
+
+    return distance
 
 
 ######Plataforma em nuvem FIWARE configs:
@@ -73,7 +106,7 @@ client = mqtt.Client("dispositivo_iot")
 sub_topic = "/19662024/b827eb00f6d0/cmd"
 pub_topic = "/ul/19662024/b827eb00f6d0/attrs"
 Connected = False
-transmission_delay = 60
+transmission_delay = 30
 
 
 ###################################################################################
@@ -101,6 +134,8 @@ def on_message(client, userdata, msg):
 # Publicando
 def on_publish():
     #Coleta as medições dos sensores do raspberry pi
+
+    ###################### Coletando medições de temperatura e umidade:
     #Medições de temperatura e umidade (sensor DHT11):
     umid, temp = Adafruit_DHT.read_retry(dht_sensor, dht_sensor_pin)
     print("\n\nMedições do sensor DHT11:")
@@ -113,6 +148,7 @@ def on_publish():
     else:
         print("DHT11 Sensor failure. Check wiring.")
 
+    ###################### Coletando medições de gás/fumaça:
     #Medições de fumaça (sensor MQ2):
     gas_present = GPIO.input(mq2_do_pin)
     print("\nMedições do sensor MQ2:")
@@ -125,6 +161,33 @@ def on_publish():
     print(f"Status da Fumaça: {gas_state}")
     payload_gas = '033250|%d' % gas_presente
     print('PayloadGas={}'.format(payload_gas))
+
+    ###################### Coletando medições de temperatura e umidade:
+    #Verifica distância
+    dist = distance()
+    print(f"Distância até a porta: %0.2f cm" % dist)
+
+    if dist <= 3:
+        presence = 0
+    else:
+        presence = 1
+
+    now = datetime.datetime.now()
+    dezdanoite = now
+    dezdanoite = dezdanoite.replace(hour=22, minute=0, second=0, microsecond=0)
+    seisdamanha = now
+    seisdamanha = seisdamanha.replace(hour=6, minute=0, second=0, microsecond=0)
+
+    if (now.time() >= dezdanoite.time()) and (now.time() <= seisdamanha.time()):
+        if presence == 1:
+            presence_notify = 1
+        else:
+            presence_notify = 0
+    else:
+        presence_notify = 0
+
+    payload_presence = '033020|%d' % presence_notify
+
 
     #Transmite temperatura para a plataforma FIWARE
     #Transmite temperatura
