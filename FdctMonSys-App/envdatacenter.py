@@ -178,13 +178,17 @@ def on_publish():
     seisdamanha = now
     seisdamanha = seisdamanha.replace(hour=6, minute=0, second=0, microsecond=0)
 
+    print(f"now: %s, dezdanoite: %s, seisdamanha: %s" % now.time(), dezdanoite.time(), seisdamanha.time())
     if (now.time() >= dezdanoite.time()) and (now.time() <= seisdamanha.time()):
+        print(f"now: %s, dezdanoite: %s, seisdamanha: %s" % now.time(), dezdanoite.time(), seisdamanha.time())
         if presence == 1:
             presence_notify = 1
         else:
             presence_notify = 0
     else:
         presence_notify = 0
+
+    print(f"presence_notify: %s" % presence_notify)
 
     payload_presence = '033020|%d' % presence_notify
 
@@ -196,6 +200,8 @@ def on_publish():
     client.publish(pub_topic, payload_umid)
     time.sleep(3)
     client.publish(pub_topic, payload_gas)
+    time.sleep(3)
+    client.publish(pub_topic, payload_presence)
 
 
 #########################################################################################
