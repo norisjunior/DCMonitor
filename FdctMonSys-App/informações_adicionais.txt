@@ -4,5 +4,10 @@ https://www.makerhero.com/blog/temperatura-umidade-dht11-com-raspberry-pi/
 MQ2 tutorial:
 https://newbiely.com/tutorials/raspberry-pi/raspberry-pi-gas-sensor
 
+HC-SR04 tutoriais:
+
+#Wiring: https://thepihut.com/blogs/raspberry-pi-tutorials/hc-sr04-ultrasonic-range-sensor-on-the-raspberry-pi
+#Código: https://tutorials-raspberrypi.com/raspberry-pi-ultrasonic-sensor-hc-sr04/
+
 Systemctl tutorial:
 https://medium.com/codex/setup-a-python-script-as-a-service-through-systemctl-systemd-f0cc55a42267
