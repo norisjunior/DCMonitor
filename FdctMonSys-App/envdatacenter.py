@@ -167,7 +167,7 @@ def on_publish():
     ###################### Coletando medições de temperatura e umidade:
     #Verifica distância
     print("\n----------------------------------------------------------")
-    print("\nMedições do sensor HC-SR04:")
+    print("Medições do sensor HC-SR04:")
     dist = distance()
     print(f"Distância até a porta: %0.2f cm" % dist)
 
