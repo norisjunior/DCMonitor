@@ -178,7 +178,7 @@ def on_publish():
     seisdamanha = now
     seisdamanha = seisdamanha.replace(hour=6, minute=0, second=0, microsecond=0)
 
-    print(f"now: {now:%H:%M:%S})
+    print(f"now: {now:%H:%M:%S}; dezdanoite: {dezdanoite:%H:%M:%S}; seisdamanha: {seisdamanha:%H:%M:%S}\n")
     if (now.time() >= dezdanoite.time()) and (now.time() <= seisdamanha.time()):
         print(f"now: %s, dezdanoite: %s, seisdamanha: %s" % now.time(), dezdanoite.time(), seisdamanha.time())
         if presence == 1:
