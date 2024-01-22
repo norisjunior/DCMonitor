@@ -138,7 +138,8 @@ def on_publish():
     ###################### Coletando medições de temperatura e umidade:
     #Medições de temperatura e umidade (sensor DHT11):
     umid, temp = Adafruit_DHT.read_retry(dht_sensor, dht_sensor_pin)
-    print("\n\nMedições do sensor DHT11:")
+    print("\n\n----------------------------------------------------------")
+    print("Medições do sensor DHT11:")
     if umid is not None and temp is not None:
         print('Temp={0:0.1f}ºC  -  Umid={1:0.1f}%'.format(temp, umid))
         payload_temp = '033030|%0.2f' % (temp)
@@ -151,7 +152,8 @@ def on_publish():
     ###################### Coletando medições de gás/fumaça:
     #Medições de fumaça (sensor MQ2):
     gas_present = GPIO.input(mq2_do_pin)
-    print("\nMedições do sensor MQ2:")
+    print("\n----------------------------------------------------------")
+    print("Medições do sensor MQ2:")
     if gas_present == GPIO.LOW:
         gas_state = "FUMAÇA!"
         gas_presente = 1
@@ -164,6 +166,7 @@ def on_publish():
 
     ###################### Coletando medições de temperatura e umidade:
     #Verifica distância
+    print("\n----------------------------------------------------------")
     print("\nMedições do sensor HC-SR04:")
     dist = distance()
     print(f"Distância até a porta: %0.2f cm" % dist)
@@ -179,7 +182,7 @@ def on_publish():
     seisdamanha = now
     seisdamanha = seisdamanha.replace(hour=6, minute=0, second=0, microsecond=0)
 
-    print(f"now: {now:%H:%M:%S}; dezdanoite: {dezdanoite:%H:%M:%S}; seisdamanha: {seisdamanha:%H:%M:%S}\n")
+    print(f"now: {now:%H:%M:%S}; dezdanoite: {dezdanoite:%H:%M:%S}; seisdamanha: {seisdamanha:%H:%M:%S}")
     if (now.time() >= dezdanoite.time()) and (now.time() <= seisdamanha.time()):
         print(f"now: %s, dezdanoite: %s, seisdamanha: %s" % now.time(), dezdanoite.time(), seisdamanha.time())
         if presence == 1:
