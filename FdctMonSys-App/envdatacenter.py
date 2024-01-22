@@ -184,7 +184,7 @@ def on_publish():
 
     print(f"now: {now:%H:%M:%S}; dezdanoite: {dezdanoite:%H:%M:%S}; seisdamanha: {seisdamanha:%H:%M:%S}")
     if (now.time() >= dezdanoite.time()) and (now.time() <= seisdamanha.time()):
-        print(f"now: %s, dezdanoite: %s, seisdamanha: %s" % now.time(), dezdanoite.time(), seisdamanha.time())
+        #print(f"now: %s, dezdanoite: %s, seisdamanha: %s" % now.time(), dezdanoite.time(), seisdamanha.time())
         if presence == 1:
             presence_notify = 1
         else:
