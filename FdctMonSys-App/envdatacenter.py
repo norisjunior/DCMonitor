@@ -197,8 +197,6 @@ def on_publish():
     if (now.time() >= dezdanoite.time()) or (now.time() <= seisdamanha.time()):
         if presence == 1:
             presence_notify = 1
-        #Transmite presença para o zabbix entre 22h e 6h
-        os.system((cmd_zabbix+cmd_param_presenca) .format(presence_notify))
 
     print(f"presence_notify: %s" % presence_notify)
 
@@ -224,10 +222,9 @@ def on_publish():
     os.system((cmd_zabbix+cmd_param_fumaca) .format(gas_presente))
     time.sleep(3)
     #Transmite presença
-    #No caso da presença, pessoal da Algar solicitou que só seja enviado
-    #para o zabbix no período das 22h às 6h, por isso o zabbix_sender
-    #fica lá no if de detecção de presença das 22h às 6h
     client.publish(pub_topic, payload_presence)
+    os.system((cmd_zabbix+cmd_param_presenca) .format(presence_notify))
+
 
     # END on_publish() #########################################################
 
