@@ -184,10 +184,10 @@ def on_publish():
     dezdanoite = dezdanoite.replace(hour=22, minute=0, second=0, microsecond=0)
     seisdamanha = now
     seisdamanha = seisdamanha.replace(hour=6, minute=0, second=0, microsecond=0)
-    print(f"now: {now}; dezdanoite: {dezdanoite}; seisdamanha: {seisdamanha}")
+    print(f"now: {now:%H:%M:%S}; dezdanoite: {dezdanoite:%H:%M:%S}; seisdamanha: {seisdamanha:%H:%M:%S}")
 
     #Se tiver presença depois das 22h e antes das 6h, envia notificação
-    if (now >= dezdanoite) or (now <= seisdamanha):
+    if (now.time() >= dezdanoite.time()) or (now.time() <= seisdamanha.time()):
         if presence == 1:
             presence_notify = 1
 
