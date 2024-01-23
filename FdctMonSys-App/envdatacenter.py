@@ -100,13 +100,20 @@ dispositivo_iot=hex(uuid.getnode())[2:]
 
 
 ################Variáveis de controle do MQTT e transmissão
-
 broker = "192.168.10.90" #servidor 192.168.10.90, que está o Mosquitto MQTT Broker
 client = mqtt.Client("dispositivo_iot")
 sub_topic = "/19662024/b827eb00f6d0/cmd"
 pub_topic = "/ul/19662024/b827eb00f6d0/attrs"
 Connected = False
 transmission_delay = 30
+
+
+#Configurações do comando zabbix_sender
+cmd_zabbix = 'zabbix_sender -z 10.32.8.57 -s \"SALA COFRE\" '
+cmd_param_temp = '-k temperatura -o {}'
+cmd_param_umid = '-k umidade -o {}'
+cmd_param_fumaca = '-k fumaca -o {}'
+cmd_param_presenca = '-k presenca -o {}'
 
 
 ################################################################################
@@ -190,6 +197,8 @@ def on_publish():
     if (now.time() >= dezdanoite.time()) or (now.time() <= seisdamanha.time()):
         if presence == 1:
             presence_notify = 1
+        #Transmite presença para o zabbix entre 22h e 6h
+        os.system((cmd_zabbix+cmd_param_presenca) .format(presence_notify))
 
     print(f"presence_notify: %s" % presence_notify)
 
@@ -200,11 +209,6 @@ def on_publish():
     #Configurações do comando zabbix_sender
     print("\n---------------------------------------------------------")
     print('Transmissão:')
-    cmd_zabbix = 'zabbix_sender -z 10.32.8.57 -s \"SALA COFRE\" '
-    cmd_param_temp = '-k temperatura -o {}'
-    cmd_param_umid = '-k umidade -o {}'
-    cmd_param_fumaca = '-k fumaca -o {}'
-    cmd_param_presenca = '-k presenca -o {}'
 
     #Transmite temperatura para a plataforma FIWARE e para o zabbix
     #Transmite temperatura
@@ -220,8 +224,10 @@ def on_publish():
     os.system((cmd_zabbix+cmd_param_fumaca) .format(gas_presente))
     time.sleep(3)
     #Transmite presença
+    #No caso da presença, pessoal da Algar solicitou que só seja enviado
+    #para o zabbix no período das 22h às 6h, por isso o zabbix_sender
+    #fica lá no if de detecção de presença das 22h às 6h
     client.publish(pub_topic, payload_presence)
-    os.system((cmd_zabbix+cmd_param_presenca) .format(presence_notify))
 
     # END on_publish() #########################################################
 
