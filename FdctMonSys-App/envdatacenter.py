@@ -166,7 +166,7 @@ def on_publish():
 
     ###################### Coletando medições de temperatura e umidade:
     #Verifica distância
-    print("\n----------------------------------------------------------")
+    print("\n---------------------------------------------------------")
     print("Medições do sensor HC-SR04:")
     dist = distance()
     print(f"Distância até a porta: %0.2f cm" % dist)
@@ -198,6 +198,8 @@ def on_publish():
 
 
     #Configurações do comando zabbix_sender
+    print("\n---------------------------------------------------------")
+    print('Transmissão:')
     cmd_zabbix = 'zabbix_sender -z 10.32.8.57 -s \"SALA COFRE\" '
     cmd_param_temp = '-k temperatura -o {}'
     cmd_param_umid = '-k umidade -o {}'
