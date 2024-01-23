@@ -171,8 +171,10 @@ def on_publish():
     dist = distance()
     print(f"Distância até a porta: %0.2f cm" % dist)
 
-    #Caso a distância seja maior que 5 centímetros marca como presença
-    if dist > 5:
+    #Caso a distância seja menor que 2 metros marca como presença
+    presence = 0
+    presence_notify = 0
+    if dist < 200: #2 metros, 200 centímetros
         presence = 1
     else:
         presence = 0
@@ -182,16 +184,12 @@ def on_publish():
     dezdanoite = dezdanoite.replace(hour=22, minute=0, second=0, microsecond=0)
     seisdamanha = now
     seisdamanha = seisdamanha.replace(hour=6, minute=0, second=0, microsecond=0)
-    #print(f"now: {now:%H:%M:%S}; dezdanoite: {dezdanoite:%H:%M:%S}; seisdamanha: {seisdamanha:%H:%M:%S}")
+    print(f"now: {now}; dezdanoite: {dezdanoite}; seisdamanha: {seisdamanha}")
 
-    #Se tiver presença depois das 22h e antes das 6h, envia notificação    
-    if (now.time() >= dezdanoite.time()) and (now.time() <= seisdamanha.time()):
+    #Se tiver presença depois das 22h e antes das 6h, envia notificação
+    if (now >= dezdanoite) or (now <= seisdamanha):
         if presence == 1:
             presence_notify = 1
-        else:
-            presence_notify = 0
-    else:
-        presence_notify = 0
 
     print(f"presence_notify: %s" % presence_notify)
 
