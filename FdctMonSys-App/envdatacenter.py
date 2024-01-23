@@ -197,15 +197,29 @@ def on_publish():
     print('PayloadPresence={}'.format(payload_presence))
 
 
-    #Transmite temperatura para a plataforma FIWARE
+    #Configurações do comando zabbix_sender
+    cmd_zabbix = 'zabbix_sender -z 10.32.8.57 -s \"SALA COFRE\" '
+    cmd_param_temp = '-k temperatura -o {}'
+    cmd_param_umid = '-k umidade -o {}'
+    cmd_param_fumaca = '-k fumaca -o {}'
+    cmd_param_presenca = '-k presenca -o {}'
+
+    #Transmite temperatura para a plataforma FIWARE e para o zabbix
     #Transmite temperatura
     client.publish(pub_topic, payload_temp)
+    os.system((cmd_zabbix+cmd_param_temp) .format(temp))
     time.sleep(3)
+    #Transmite umidade
     client.publish(pub_topic, payload_umid)
+    os.system((cmd_zabbix+cmd_param_umid) .format(umid))
     time.sleep(3)
+    #Transmite fumaça
     client.publish(pub_topic, payload_gas)
+    os.system((cmd_zabbix+cmd_param_fumaca) .format(gas_presente))
     time.sleep(3)
+    #Transmite presença
     client.publish(pub_topic, payload_presence)
+    os.system((cmd_zabbix+cmd_param_presenca) .format(presence_notify))
 
     # END on_publish() #########################################################
 
