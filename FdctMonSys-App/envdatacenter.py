@@ -257,7 +257,7 @@ def envia_presenca(notifica_presenca, payload_presence):
     #Transmite para a plataforma FIWARE e para o zabbix
     print("\n---------------------------------------------------------")
     print('Transmissão de presença:')
-    print(f"PRESENÇA ANTES DE ENVIAR: payload_presence {payload_presence}, notifica_presenca {notifica_presenca}")
+    #print(f"PRESENÇA ANTES DE ENVIAR: payload_presence {payload_presence}, notifica_presenca {notifica_presenca}")
     #Transmite presença
     client.publish(pub_topic, payload_presence)
     os.system((cmd_zabbix+cmd_param_presenca) .format(notifica_presenca))
@@ -268,7 +268,7 @@ def envia_temp_umid_fumaca(temp, umid, fumaca, payload_temp, payload_umid, paylo
     #Transmite para a plataforma FIWARE e para o zabbix
     print("\n---------------------------------------------------------")
     print('Transmissão de temperatura, umidade e fumaça:')
-    print(f"TEMP, UMID, FUMAÇA ANTES DE ENVIAR: payload_temp {payload_temp}, payload_umid {payload_umid}, payload_fumaca {payload_fumaca}, temp {temp}, umid {umid}, fumaca {fumaca} ")
+    #print(f"TEMP, UMID, FUMAÇA ANTES DE ENVIAR: payload_temp {payload_temp}, payload_umid {payload_umid}, payload_fumaca {payload_fumaca}, temp {temp}, umid {umid}, fumaca {fumaca} ")
 
     #Transmite temperatura
     client.publish(pub_topic, payload_temp)
