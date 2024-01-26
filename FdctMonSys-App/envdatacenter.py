@@ -182,8 +182,8 @@ def on_message(client, userdata, msg):
 ################################################################################
 # Funções para coleta de medições dos sensores
 
-###################### Coletando medições distância/presença:
-def coleta_presenca():
+###################### Coletando medições distância/presença e gás/fumaça:
+def coleta_presenca_fumaca():
     #Verifica distância
     print("\n---------------------------------------------------------")
     print("Medições do sensor HC-SR04:")
@@ -215,21 +215,6 @@ def coleta_presenca():
     payload_presenca = '033020|%d' % presence_notify
     print('PayloadPresence={}'.format(payload_presenca))
 
-    return presence_notify, payload_presenca
-
-
-
-
-###################### Coletando medições de temperatura, umidade e fumaça:
-def coleta_temp_umid_fumaca():
-    #Medições de temperatura e umidade (sensor DHT11):
-    print("\n\n----------------------------------------------------------")
-    print("Medições do sensor DHT11:")
-    temperatura, umidade = mede_temp_umid()
-    payload_temperatura = '033030|%0.2f' % (temperatura)
-    payload_umidade = '033040|%0.2f' % (umidade)
-    print('PayloadTemp={}'.format(payload_temperatura))
-    print('PayloadUmid={}'.format(payload_umidade))
 
     #Medições de fumaça (sensor MQ2):
     print("\n----------------------------------------------------------")
@@ -243,7 +228,23 @@ def coleta_temp_umid_fumaca():
     payload_gas = '033250|%d' % fumaca
     print('PayloadGas={}'.format(payload_gas))
 
-    return temperatura, umidade, fumaca, payload_temperatura, payload_umidade, payload_gas
+    return presence_notify, payload_presenca, fumaca, payload_gas
+
+
+
+
+###################### Coletando medições de temperatura, umidade e fumaça:
+def coleta_temp_umid():
+    #Medições de temperatura e umidade (sensor DHT11):
+    print("\n\n----------------------------------------------------------")
+    print("Medições do sensor DHT11:")
+    temperatura, umidade = mede_temp_umid()
+    payload_temperatura = '033030|%0.2f' % (temperatura)
+    payload_umidade = '033040|%0.2f' % (umidade)
+    print('PayloadTemp={}'.format(payload_temperatura))
+    print('PayloadUmid={}'.format(payload_umidade))
+
+    return temperatura, umidade, payload_temperatura, payload_umidade
 ################################################################################
 
 
@@ -251,24 +252,27 @@ def coleta_temp_umid_fumaca():
 
 ################################################################################
 # Funções para transmissão dos valores medidos
+# Transmite para a plataforma FIWARE e para o zabbix
 
 ###################### Transmite presença:
-def envia_presenca(notifica_presenca, payload_presence):
-    #Transmite para a plataforma FIWARE e para o zabbix
+def envia_presenca_fumaca(notifica_presenca, payload_presence, fumaca, payload_fumaca):
     print("\n---------------------------------------------------------")
-    print('Transmissão de presença:')
-    #print(f"PRESENÇA ANTES DE ENVIAR: payload_presence {payload_presence}, notifica_presenca {notifica_presenca}")
+    print('Transmissão de presença e fumaça:')
+    #print(f"PRESENÇA ANTES DE ENVIAR: payload_presence {payload_presence}, notifica_presenca {notifica_presenca}, payload_fumaca {payload_fumaca}, fumaca {fumaca}")
     #Transmite presença
     client.publish(pub_topic, payload_presence)
     os.system((cmd_zabbix+cmd_param_presenca) .format(notifica_presenca))
+    #Transmite fumaça
+    client.publish(pub_topic, payload_fumaca)
+    os.system((cmd_zabbix+cmd_param_fumaca) .format(fumaca))
 
 
 ###################### Transmite temperatura, umidade e fumaça:
-def envia_temp_umid_fumaca(temp, umid, fumaca, payload_temp, payload_umid, payload_fumaca):
+def envia_temp_umid(temp, umid, payload_temp, payload_umid):
     #Transmite para a plataforma FIWARE e para o zabbix
     print("\n---------------------------------------------------------")
-    print('Transmissão de temperatura, umidade e fumaça:')
-    #print(f"TEMP, UMID, FUMAÇA ANTES DE ENVIAR: payload_temp {payload_temp}, payload_umid {payload_umid}, payload_fumaca {payload_fumaca}, temp {temp}, umid {umid}, fumaca {fumaca} ")
+    print('Transmissão de temperatura, umidade:')
+    #print(f"TEMP, UMID, FUMAÇA ANTES DE ENVIAR: payload_temp {payload_temp}, payload_umid {payload_umid}, temp {temp}, umid {umid}")
 
     #Transmite temperatura
     client.publish(pub_topic, payload_temp)
@@ -276,9 +280,6 @@ def envia_temp_umid_fumaca(temp, umid, fumaca, payload_temp, payload_umid, paylo
     #Transmite umidade
     client.publish(pub_topic, payload_umid)
     os.system((cmd_zabbix+cmd_param_umid) .format(umid))
-    #Transmite fumaça
-    client.publish(pub_topic, payload_fumaca)
-    os.system((cmd_zabbix+cmd_param_fumaca) .format(fumaca))
 ################################################################################
 
 
@@ -305,12 +306,12 @@ if __name__ == "__main__":
     try:
         while True:
             # Verifica distância a cada 2 segundos
-            notifica_presenca, payload_presence = coleta_presenca()
-            envia_presenca(notifica_presenca, payload_presence)
+            notifica_presenca, payload_presence, fumaca, payload_fumaca = coleta_presenca_fumaca()
+            envia_presenca_fumaca(notifica_presenca, payload_presence, fumaca, payload_fumaca)
             # A cada 30 segundos envia medições de temp, umid e fumaça
             if interval == 30:
-                temp, umid, fumaca, payload_temp, payload_umid, payload_fumaca = coleta_temp_umid_fumaca()
-                envia_temp_umid_fumaca(temp, umid, fumaca, payload_temp, payload_umid, payload_fumaca)
+                temp, umid, payload_temp, payload_umid = coleta_temp_umid()
+                envia_temp_umid(temp, umid, payload_temp, payload_umid)
                 interval = 0
             interval += 2
             time.sleep(transmission_delay)
