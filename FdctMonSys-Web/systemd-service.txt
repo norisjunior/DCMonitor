@@ -1,0 +1,27 @@
+# Onde gravar o arquivo de para tornar a aplicação Web um serviço do Linux (usando systemctl)
+
+
+# Criando serviço:
+# Local: /etc/systemd/system
+# Arquivo: FdctMonSysWeb.service
+
+$ cd /etc/systemd/system
+$ sudo nvim FdctMonSysWeb.service
+#CONTEÚDO DO ARQUIVO:
+[Unit]
+Description=FdctMonSysWeb Application
+After=FdctMonSysApp.service
+
+[Service]
+ExecStart=/usr/local/bin/node /Fundacentro/DCMonitor/FdctMonSysWeb/FdctMonSysWeb.js
+Restart=always
+User=administrator
+Environment=PATH=/usr/local/bin
+Environment=NODE_ENV=production
+WorkingDirectory=/Fundacentro/DCMonitor/FdctMonSysWeb
+
+[Install]
+WantedBy=multi-user.target
+
+# Reiniciar o serviço systemctl:
+$ sudo systemctl daemon-reload

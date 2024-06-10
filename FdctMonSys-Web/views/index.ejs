@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fundacentro - Monitoramento das condições de ambiente do datacenter</title>
+    <style>
+        body {
+            background-color: #222;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        .sensor-value {
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: darkgreen;
+            border-radius: 5px;
+            font-size: 18px;
+        }
+	.centered {
+            /*width: 95%; /* Adjust width as per your requirement */
+            padding: 20px; /* Adjust padding as per your requirement */
+	    margin-bottom: 15px;
+            background-color: #233c33; /* Adjust background color as per your requirement */
+            border: 5px; /* Adjust border properties as per your requirement */
+            text-align: center; /* Center text inside the div */
+	    position=absolute;
+	    left: 50%;
+	    
+	}
+    </style>
+</head>
+<body>
+    <div class="centered"><h1>Fundacentro</h1></div>
+    <div class="centered"><h2>Monitoramento das condições de ambiente do datacenter</h2></div>
+    <div class="sensor-value">Temperatura: <%= values.value033030 %>ºC</div>
+    <div class="sensor-value">Umidade: <%= values.value033040 %>%</div>
+    <div class="sensor-value">Fumaça: <%= values.value033250 %></div>
+    <div class="sensor-value">Presença: <%= values.value033020 %></div>
+    <div class="sensor-value">Timestamp: <%= values.valuetime %></div>
+</body>
+</html>
+
