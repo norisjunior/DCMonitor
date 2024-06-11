@@ -13,12 +13,12 @@ Description=FdctMonSysWeb Application
 After=FdctMonSysApp.service
 
 [Service]
-ExecStart=/usr/local/bin/node /Fundacentro/DCMonitor/FdctMonSysWeb/FdctMonSysWeb.js
+ExecStart=/usr/local/bin/node /Fundacentro/DCMonitor/FdctMonSys-Web/FdctMonSysWeb.js
 Restart=always
 User=administrator
 Environment=PATH=/usr/local/bin
 Environment=NODE_ENV=production
-WorkingDirectory=/Fundacentro/DCMonitor/FdctMonSysWeb
+WorkingDirectory=/Fundacentro/DCMonitor/FdctMonSys-Web
 
 [Install]
 WantedBy=multi-user.target
