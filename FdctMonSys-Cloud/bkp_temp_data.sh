@@ -37,7 +37,7 @@ cd $bkp_dir
 echo "Executando..." >> $log_filename
 
 # Só temperatura de ontem:
-$(sudo docker exec $contid sh -c "exec mysql -h mysql-db -P 3306 -u root -pFdctMonD@t@ -e \"SELECT CONCAT_WS(',', recvTime, attrType, attrValue, recvTimeTs, CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo')) AS csv_row FROM fundacentro.b827eb00f6d0_Raspberry WHERE attrType = 'actual_temp' AND CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo') >= CURDATE() - INTERVAL 1 DAY AND CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo') < CURDATE() ORDER BY recvTimeTs ASC;\"" > $filename) >> $log_filename
+#$(sudo docker exec $contid sh -c "exec mysql -h mysql-db -P 3306 -u root -pFdctMonD@t@ -e \"SELECT CONCAT_WS(',', recvTime, attrType, attrValue, recvTimeTs, CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo')) AS csv_row FROM fundacentro.b827eb00f6d0_Raspberry WHERE attrType = 'actual_temp' AND CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo') >= CURDATE() - INTERVAL 1 DAY AND CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo') < CURDATE() ORDER BY recvTimeTs ASC;\"" > $filename) >> $log_filename
 
 # Valores de todos os sensores de ontem:
 $(sudo docker exec $contid sh -c "exec mysql -h mysql-db -P 3306 -u root -pFdctMonD@t@ -e \"SELECT CONCAT_WS(',', recvTime, attrType, attrValue, recvTimeTs, CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo')) AS csv_row FROM fundacentro.b827eb00f6d0_Raspberry WHERE (attrType = 'actual_temp' OR attrType = 'actual_umid' OR attrType = 'actual_presence' OR attrType = 'actual_smoke') AND CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo') >= CURDATE() - INTERVAL 1 DAY AND CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo') < CURDATE() ORDER BY recvTimeTs ASC;\"" > $filename) >> $log_filename
