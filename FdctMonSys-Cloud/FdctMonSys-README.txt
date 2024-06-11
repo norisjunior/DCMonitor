@@ -20,7 +20,7 @@ ORDER BY    recvTimeTs ASC;
 
 
 
-# TRAZ TUDO LIMITANDO AOS 10 ÚLTIMOS:
+# TRAZ TUDO DE TEMPERATURA LIMITANDO AOS 10 ÚLTIMOS:
 # SELECT
 #   CONCAT_WS(',', recvTime, attrType, attrValue, recvTimeTs) AS csv_row
 # FROM (
@@ -33,7 +33,7 @@ ORDER BY    recvTimeTs ASC;
 # ORDER BY recvTimeTs ASC;
 
 
-# TODAS AS MEDIÇÕES DE ONTEM:
+# TODAS AS MEDIÇÕES DE TEMPERATURA DE ONTEM:
 # SELECT
 #   CONCAT_WS(',', recvTime, attrType, attrValue, recvTimeTs, CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo')) AS csv_row
 # FROM fundacentro.b827eb00f6d0_Raspberry
@@ -42,6 +42,24 @@ ORDER BY    recvTimeTs ASC;
 #   AND CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo') < CURDATE()
 # ORDER BY recvTimeTs ASC;
 
+
+# TODAS AS MEDIÇÕES DE TODOS OS SENSORES DE ONTEM:
+#SELECT
+#    CONCAT_WS(',', recvTime, attrType, attrValue, recvTimeTs, CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo')) AS csv_row
+#
+#FROM
+#    fundacentro.b827eb00f6d0_Raspberry
+#
+#WHERE
+#    (attrType = 'actual_temp' OR
+#    attrType = 'actual_umid' OR
+#    attrType = 'actual_presence' OR
+#    attrType = 'actual_smoke')
+#    AND CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo') >= CURDATE() - INTERVAL 1 DAY
+#    AND CONVERT_TZ(recvTime, '+00:00', 'America/Sao_Paulo') < CURDATE()
+#
+#ORDER BY
+#    recvTimeTs ASC;
 
 
 # No dispositivo raspberry, buscando nos logs a temperatura:
