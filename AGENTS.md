@@ -21,6 +21,8 @@ Se algum campo crítico estiver vago, ausente ou ambíguo, pergunte ao usuário 
    (feat → test → docs → refactor → chore). Mensagens curtas e revisáveis.
 5. **Fechamento de tarefa:** execute testes e lint, atualize `CHANGELOG.md` e os
    `docs/*` afetados, e rode os scripts relevantes de `scripts/`.
+   Ao adicionar, remover ou renomear arquivos em uma subpasta, verifique se ela
+   tem `README.md` próprio e atualize-o na mesma sessão.
 6. **Nunca quebre o que funciona.** Mudanças em código compartilhado exigem
    checagem de regressão.
 

@@ -31,18 +31,30 @@ Menu → Credentials → New → Postgres
 | User     | (valor de POSTGRES_USER)|
 | Password | (valor de POSTGRES_PASSWORD) |
 
-## 3. Importar os fluxos
+## 3. Fluxos disponíveis
+
+| Arquivo | Usar quando | Zabbix necessário? |
+|---|---|---|
+| `flow_principal.json` | Produção — envia ao banco **e** ao Zabbix | Sim |
+| `flow_principal_sem_zabbix.json` | Homologação / teste local — somente banco | Não |
+| `flow_retencao.json` | Ambos os ambientes — limpeza de 90 dias | Não |
+
+## 4. Importar os fluxos
 
 Menu → Workflows → Import from file
 
+**Produção:**
 1. Importe `flow_principal.json`
 2. Importe `flow_retencao.json`
 
+**Homologação / teste local (sem Zabbix):**
+1. Importe `flow_principal_sem_zabbix.json`
+2. Importe `flow_retencao.json`
+
 Após importar cada fluxo, abra-o, associe as credenciais nos nós indicados
-(o n8n solicitará que você selecione as credenciais criadas no passo 2)
 e **ative o fluxo** com o toggle no canto superior direito.
 
-## 4. Verificar funcionamento
+## 5. Verificar funcionamento
 
 ### Fluxo principal
 ```bash
@@ -58,15 +70,22 @@ docker compose exec postgres psql -U fdctmon -d fdctmon \
 ### Fluxo de retenção
 Na UI do n8n: abra o fluxo → clique em "Test workflow" → confirme que não há erro.
 
-## 5. Nós e responsabilidades
+## 6. Nós e responsabilidades
 
-### flow_principal.json
+### flow_principal.json (produção)
 | Nó | Responsabilidade |
 |----|-----------------|
 | MQTT Trigger | Recebe JSON do tópico `fdctmon/#` |
-| Parse JSON | Valida campos obrigatórios; falha explícita se payload inválido |
+| Parse JSON | Valida e sanitiza campos; falha explícita se payload inválido |
 | INSERT medicoes | Grava no banco com timestamp automático do servidor |
 | Envia ao Zabbix | Chama `zabbix_sender` para os 4 itens; `continueOnFail=true` |
+
+### flow_principal_sem_zabbix.json (homologação)
+| Nó | Responsabilidade |
+|----|-----------------|
+| MQTT Trigger | Recebe JSON do tópico `fdctmon/#` |
+| Parse JSON | Valida e sanitiza campos; idêntico ao fluxo de produção |
+| INSERT medicoes | Grava no banco com timestamp automático do servidor |
 
 ### flow_retencao.json
 | Nó | Responsabilidade |
