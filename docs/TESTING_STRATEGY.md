@@ -1,52 +1,42 @@
 # TESTING_STRATEGY.md
 
-> Mantido por: `qa-testing`. Remova as seções que não se aplicam à stack do projeto.
+> Mantido por: `qa-testing`.
 
 ## Níveis de teste
 
-| Nível | Escopo | Ferramenta (exemplo) | Quando executar |
+| Nível | Escopo | Ferramenta | Quando executar |
 |---|---|---|---|
-| Unitário | Funções e classes individuais | pytest, Jest, Unity | A cada commit |
-| Integração | Endpoints de API + banco de dados | pytest + TestClient, Supertest | A cada commit |
-| E2E | Fluxos críticos do usuário | Playwright, Cypress | Antes do release |
-| Visual | Consistência de UI | Manual ou screenshots Playwright | Antes de entregar frontend |
-| Firmware | Comportamento de hardware | Simulação Wokwi ou placa real | A cada mudança de firmware |
+| Unitário | Rotas Flask + lógica de presença notificável | pytest | A cada commit |
+| Integração | Stack completo (MQTT → n8n → DB → Flask) | Docker Compose + mosquitto_pub | Antes de entregar |
+| Visual | Dashboard NOC no browser | Manual | Antes de entregar |
 
 ## Metas de cobertura
 
 | Camada | Cobertura mínima |
 |---|---|
-| Regras de negócio do backend | 70% de cobertura de linha |
-| Endpoints críticos de API | 100% caminho feliz + principais casos de erro |
-| Componentes de frontend | Caminho feliz + estado de erro |
-| Pipeline de ML | Determinismo de pré-processamento + inferência |
+| Rotas Flask (`/` e `/api/status`) | 100% dos casos feliz + principais erros |
+| Lógica de presença notificável (22h–6h) | 100% dos limites de horário |
+| Fluxo n8n | Verificação manual via aba Executions |
 
-## Convenções de teste
+## Convenções
 
-- Testes ficam junto ao código que testam, ou em um diretório `tests/` espelhando o fonte.
-- Nomes de teste descrevem comportamento: `test_retorna_404_quando_usuario_nao_encontrado`.
-- Fixtures e factories para dados de teste — sem IDs ou emails hardcoded.
-- Serviços externos (e-mail, pagamento, broker IoT) são mockados na fronteira.
-
-## Gates de CI
-
-Os itens a seguir devem passar antes do merge:
-
-- [ ] Verificação de lint e formatação
-- [ ] Verificação de tipos (se linguagem tipada)
-- [ ] Testes unitários
-- [ ] Testes de integração
+- Testes ficam em `web/tests/`.
+- Hardware (GPIO, MQTT, banco) é mockado nos testes unitários.
+- Nomes descrevem o comportamento: `test_api_status_offline_por_tempo`.
 
 ## Comandos
 
 ```bash
-# Preencha por projeto
-# Backend
-cd backend && pytest
+# Testes unitários (sem Docker)
+source venv/bin/activate
+pytest web/tests/ -v
 
-# Frontend
-cd web && npm run test
-
-# Firmware
-cd firmware && pio test
+# Stack completo (com Docker)
+docker compose up -d --build
+mosquitto_pub -h localhost -p 1883 \
+  -t "fdctmon/b827eb00f6d0/attrs" \
+  -m '{"device_id":"b827eb00f6d0","temp":25.3,"umid":60.0,"fumaca":0,"presenca_notificavel":0,"distancia":185.5}'
+curl http://localhost:5000/api/status
 ```
+
+Para o guia completo de teste local no WSL, veja [TESTING_LOCAL.md](TESTING_LOCAL.md).

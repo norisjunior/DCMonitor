@@ -17,6 +17,10 @@ sys.modules["paho.mqtt"] = MagicMock()
 sys.modules["paho.mqtt.client"] = MagicMock()
 sys.modules["dotenv"] = MagicMock()
 
+# sensor_publisher.py lê estas vars na importação — define antes do import
+os.environ.setdefault("MQTT_BROKER_HOST", "localhost")
+os.environ.setdefault("MQTT_BROKER_PORT", "1883")
+
 # Ajusta path para o diretório do Pi
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "raspberry"))
 
