@@ -49,6 +49,7 @@ services:
       WEBHOOK_URL: http://localhost:5678/
       ZABBIX_SERVER: ${ZABBIX_SERVER}
       ZABBIX_HOST_NAME: ${ZABBIX_HOST_NAME}
+      NODE_FUNCTION_ALLOW_BUILTIN: child_process
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:
