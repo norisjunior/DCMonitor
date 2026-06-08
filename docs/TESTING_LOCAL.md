@@ -252,6 +252,91 @@ docker compose down -v       # para, remove containers E apaga volumes (banco ze
 
 ---
 
+---
+
+## Nível 3 — Homologação com simulador (fluxo completo sem Zabbix)
+
+Simula o Raspberry Pi com valores aleatórios em loop contínuo.
+Ideal para validar o fluxo Dispositivo → MQTT → n8n → Dashboard sem hardware real.
+
+### 3.1 Pré-requisitos
+
+Docker Compose no ar (Nível 2) e fluxo n8n importado.
+Ao importar no n8n, use `n8n/flow_principal_sem_zabbix.json` — é idêntico ao
+principal mas sem o nó Zabbix, evitando timeouts de conexão ao servidor 10.32.8.57.
+
+### 3.2 Instalar dependências do simulador
+
+```bash
+# No mesmo venv do Nível 1 (ou um novo)
+pip install paho-mqtt python-dotenv
+```
+
+### 3.3 Configurar o .env do simulador
+
+```bash
+cp raspberry/.env.example raspberry/.env
+```
+
+Conteúdo para homologação local:
+
+```env
+MQTT_BROKER_HOST=localhost
+MQTT_BROKER_PORT=1883
+```
+
+Opcionalmente, defina um nome para identificar o dispositivo simulado no banco:
+
+```env
+SIMULATOR_DEVICE_ID=homolog_001
+```
+
+### 3.4 Abrir os terminais
+
+Abra **3 terminais** lado a lado:
+
+**Terminal 1 — observar o broker em tempo real:**
+```bash
+mosquitto_sub -h localhost -p 1883 -t "fdctmon/#" -v
+```
+
+**Terminal 2 — rodar o simulador:**
+```bash
+cd DCMonitor
+source venv/bin/activate
+cd raspberry
+python3 sensor_simulator.py
+```
+
+Você verá logs a cada 2 s:
+```
+2026-06-08 14:30:00 [INFO] Simulador iniciando — device_id=homolog_001
+2026-06-08 14:30:00 [INFO] Conectando ao broker localhost:1883 ...
+2026-06-08 14:30:00 [INFO] MQTT conectado ao broker localhost:1883
+2026-06-08 14:30:00 [INFO] → fdctmon/homolog_001/attrs: {"device_id": "homolog_001", "temp": 24.7, "umid": 58.3, "fumaca": 0, "presenca_notificavel": 0, "distancia": 287.4}
+2026-06-08 14:30:02 [INFO] → fdctmon/homolog_001/attrs: {"device_id": "homolog_001", "temp": 24.7, ...}
+```
+
+**Terminal 3 — confirmar gravação no banco:**
+```bash
+watch -n 3 'docker compose exec -T postgres psql -U fdctmon -d fdctmon \
+  -c "SELECT id, timestamp::time, device_id, temperatura, fumaca, presenca_notificavel, distancia FROM medicoes ORDER BY timestamp DESC LIMIT 5;"'
+```
+
+### 3.5 Verificar o dashboard
+
+Abra `http://localhost:5000` no browser.
+Os valores devem atualizar a cada 5 s com os dados gerados pelo simulador.
+
+Para testar o banner de offline, encerre o simulador com `Ctrl+C` e aguarde 2 minutos.
+
+### 3.6 Verificar execuções no n8n
+
+Acesse `http://localhost:5678` → abra o fluxo `FdctMonSys - Principal SEM Zabbix`
+→ aba **Executions**. Deve mostrar uma execução bem-sucedida a cada 2 s.
+
+---
+
 ## Resumo dos comandos por nível
 
 | O que testar | Comando | Docker necessário? |
@@ -259,7 +344,8 @@ docker compose down -v       # para, remove containers E apaga volumes (banco ze
 | Regras de negócio Flask | `pytest web/tests/ -v` | Não |
 | Lógica de presença notificável | `pytest web/tests/ -v` | Não |
 | Stack completo | `docker compose up -d` | Sim |
-| Simular Pi | `mosquitto_pub ...` | Sim |
+| Simular Pi (mensagem única) | `mosquitto_pub ...` | Sim |
+| Simulador contínuo (homologação) | `python3 raspberry/sensor_simulator.py` | Sim |
 | Verificar banco | `docker compose exec postgres psql ...` | Sim |
 | Verificar API | `curl http://localhost:5000/api/status` | Sim |
 | Dashboard visual | Browser em `http://localhost:5000` | Sim |
