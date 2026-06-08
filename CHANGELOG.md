@@ -6,6 +6,29 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-06-08c] — Arquivo trimestral simplificado (SQL puro, sem carga em memória)
+
+### Alterado
+- `n8n/flow_retencao.json` — simplificado para 3 nós: cron trimestral → INSERT SELECT → DELETE; CSV removido do fluxo (geraria OOM com milhões de registros)
+- `docker-compose.yml` — removido volume `./backups` (não mais necessário)
+- `.gitignore` — removida entrada `backups/`
+- `n8n/README.md` — documentado comando manual para exportar CSV via psql quando necessário
+
+---
+
+## [2026-06-08b] — Retenção com arquivo histórico e CSV compactado
+
+### Adicionado
+- `db/schema.sql` — tabela `medicoes_historico` com índices em `timestamp` e `device_id`
+- `docker-compose.yml` — volume `./backups:/home/node/files` no serviço n8n para persistir CSVs
+
+### Alterado
+- `n8n/flow_retencao.json` — fluxo expandido de 2 para 8 nós: conta → verifica → busca → gera CSV → gzip → INSERT historico → DELETE medicoes
+- `n8n/README.md` — descrição atualizada com todos os nós do fluxo de retenção
+- `.gitignore` — adicionado `backups/` (CSVs gerados não são versionados)
+
+---
+
 ## [2026-06-08] — Implementação inicial: substituição do FIWARE por n8n + PostgreSQL
 
 ### Adicionado

@@ -37,7 +37,7 @@ Menu → Credentials → New → Postgres
 |---|---|---|
 | `flow_principal.json` | Produção — envia ao banco **e** ao Zabbix | Sim |
 | `flow_principal_sem_zabbix.json` | Homologação / teste local — somente banco | Não |
-| `flow_retencao.json` | Ambos os ambientes — limpeza de 90 dias | Não |
+| `flow_retencao.json` | Ambos os ambientes — arquivo trimestral | Não |
 
 ## 4. Importar os fluxos
 
@@ -88,7 +88,18 @@ Na UI do n8n: abra o fluxo → clique em "Test workflow" → confirme que não h
 | INSERT medicoes | Grava no banco com timestamp automático do servidor |
 
 ### flow_retencao.json
+Estratégia: arquivo trimestral — roda 4 vezes por ano (1/jan, 1/abr, 1/jul, 1/out).
+Toda a operação é SQL puro: nenhum dado trafega pelo n8n, sem risco de estouro de memória.
+
 | Nó | Responsabilidade |
 |----|-----------------|
-| Agenda Diária 02h | Dispara às 02:00 todos os dias |
-| DELETE medicoes antigas | Remove registros com mais de 90 dias |
+| Agenda Trimestral | Cron `0 2 1 */3 *` — 02:00 no dia 1 de cada trimestre |
+| Arquivar no banco | `INSERT INTO medicoes_historico SELECT … FROM medicoes` — cópia completa no banco |
+| Deletar tudo | `DELETE FROM medicoes` — só executa se o arquivo teve sucesso |
+
+**Exportar CSV quando precisar** (fora do n8n):
+```bash
+docker compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB \
+  -c "\COPY medicoes_historico TO '/tmp/historico.csv' CSV HEADER"
+docker compose cp postgres:/tmp/historico.csv ./historico.csv
+```

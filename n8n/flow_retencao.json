@@ -1,9 +1,9 @@
 {
-  "name": "FdctMonSys - Retenção 90 dias",
+  "name": "FdctMonSys - Arquivo Trimestral",
   "nodes": [
     {
       "id": "2b3c4d5e-0002-0002-0002-000000000001",
-      "name": "Agenda Diária 02h",
+      "name": "Agenda Trimestral",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
       "position": [100, 300],
@@ -12,22 +12,22 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 2 * * *"
+              "expression": "0 2 1 */3 *"
             }
           ]
         }
       },
-      "notes": "Executa diariamente às 02:00. Para testar manualmente: clique em 'Test workflow' na UI do n8n."
+      "notes": "Executa às 02:00 do dia 1 de janeiro, abril, julho e outubro. Para testar manualmente: clique em 'Test workflow' na UI do n8n."
     },
     {
       "id": "2b3c4d5e-0002-0002-0002-000000000002",
-      "name": "DELETE medicoes antigas",
+      "name": "Arquivar no banco",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [320, 300],
       "parameters": {
         "operation": "executeQuery",
-        "query": "DELETE FROM medicoes WHERE timestamp < NOW() - INTERVAL '90 days'",
+        "query": "INSERT INTO medicoes_historico (id, timestamp, device_id, temperatura, umidade, fumaca, presenca_notificavel, distancia) SELECT id, timestamp, device_id, temperatura, umidade, fumaca, presenca_notificavel, distancia FROM medicoes",
         "options": {}
       },
       "credentials": {
@@ -36,12 +36,34 @@
           "name": "FdctMonSys PostgreSQL"
         }
       },
-      "notes": "Verificação: SELECT COUNT(*) FROM medicoes WHERE timestamp < NOW() - INTERVAL '90 days'; deve retornar 0 após execução."
+      "notes": "INSERT SELECT puro — nenhum dado trafega pelo n8n. Verificação: SELECT COUNT(*) FROM medicoes_historico;"
+    },
+    {
+      "id": "2b3c4d5e-0002-0002-0002-000000000003",
+      "name": "Deletar tudo",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [540, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM medicoes",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "2",
+          "name": "FdctMonSys PostgreSQL"
+        }
+      },
+      "notes": "Só executa se Arquivar no banco tiver sucesso. Verificação: SELECT COUNT(*) FROM medicoes; deve retornar 0."
     }
   ],
   "connections": {
-    "Agenda Diária 02h": {
-      "main": [[{ "node": "DELETE medicoes antigas", "type": "main", "index": 0 }]]
+    "Agenda Trimestral": {
+      "main": [[{ "node": "Arquivar no banco", "type": "main", "index": 0 }]]
+    },
+    "Arquivar no banco": {
+      "main": [[{ "node": "Deletar tudo", "type": "main", "index": 0 }]]
     }
   },
   "active": false,

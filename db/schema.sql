@@ -19,3 +19,22 @@ CREATE INDEX IF NOT EXISTS idx_medicoes_timestamp
 -- Índice secundário: filtrar por dispositivo quando houver mais de um
 CREATE INDEX IF NOT EXISTS idx_medicoes_device_id
     ON medicoes (device_id);
+
+-- Histórico: recebe registros arquivados pelo flow de retenção (> 90 dias)
+-- id preserva o valor original de medicoes para rastreabilidade
+CREATE TABLE IF NOT EXISTS medicoes_historico (
+    id               BIGINT      NOT NULL,
+    timestamp        TIMESTAMPTZ NOT NULL,
+    device_id        TEXT        NOT NULL,
+    temperatura      NUMERIC(5,2),
+    umidade          NUMERIC(5,2),
+    fumaca           SMALLINT    NOT NULL,
+    presenca_notificavel SMALLINT NOT NULL,
+    distancia        NUMERIC(7,2)
+);
+
+CREATE INDEX IF NOT EXISTS idx_historico_timestamp
+    ON medicoes_historico (timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_historico_device_id
+    ON medicoes_historico (device_id);
