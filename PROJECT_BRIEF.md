@@ -25,20 +25,36 @@ Preencha apenas o que se aplica. Deixe os demais como `N/A`.
 
 | ID | Requisito | Prioridade | Critério de aceite |
 |---|---|---|---|
-| RF-001 | `Dispositivo IoT deve se basear no código existente, conforme consta em OLD_PROJECT\FdctMonSys-App` | Alta | `Payload MQTT transmitido para o n8n` |
-| RF-002 | `Armazenamento das medições do dispositivo IoT` | Alta | `Armazenamento na base de dados Postgres, com timestamp, de todas as medições coletadas pelo dispositivo` |
-| RF-003 | `Fluxo n8n simples e funcional, suficiente para armazenamento das medições no banco` | Baixa | `Consulta das medições no banco` |
-| RF-004 | `Dispositivo IoT não precisa mais armazenar as medições localmente, apenas transmite as medições para o n8n` | Média | `Armazenamento das medições no servidor` |
-| RF-005 | `Páginas web para visualização das condições atuais de operação (temperatura, umidade, fumaça, presença)` | Alta | `Visualização das medições em tempo real em uma página web` |
+| RF-001 | Dispositivo IoT publica JSON unificado no tópico `fdctmon/{device_id}/attrs` via MQTT a cada 2 s; temperatura usa cache local entre leituras de 30 s | Alta | Mensagem JSON `{"temp":X,"umid":X,"fumaca":X,"presenca_notificavel":X,"distancia":X,"device_id":"..."}` visível no broker; n8n recebe e armazena |
+| RF-002 | Todas as medições armazenadas no PostgreSQL com timestamp | Alta | Tabela `medicoes` contém linha para cada mensagem MQTT recebida; SELECT retorna registros com timestamp correto |
+| RF-003 | Fluxo n8n principal: subscribe MQTT → parse JSON → INSERT PostgreSQL | Alta | n8n executa sem erros; registro inserido no banco após cada publicação do Pi |
+| RF-003b | Fluxo n8n de retenção: executa diariamente e deleta registros com mais de 90 dias | Baixa | Após execução manual do fluxo, registros com `timestamp < NOW() - INTERVAL '90 days'` são removidos |
+| RF-004 | Dispositivo IoT não armazena medições localmente; apenas publica via MQTT | Média | Nenhum arquivo local ou banco é gravado no Pi; todo armazenamento ocorre no servidor |
+| RF-005 | Dashboard web (Flask) exibe temperatura, umidade, fumaça, presença notificável e distância em tempo real | Alta | Página atualiza via AJAX a cada 5 s; valores refletem última medição do banco; alerta visual exibido se último registro tiver mais de 2 min |
+| RF-006 | Servidor encaminha medições ao Zabbix (host `10.32.8.57`, chaves: `temperatura`, `umidade`, `fumaca`, `presenca`) | Alta | `zabbix_sender` executado no servidor a cada mensagem MQTT; itens atualizados no Zabbix confirmados via latest data |
 
 ## 4. Requisitos não-funcionais
 
 | ID | Requisito | Critério de aceite |
 |---|---|---|
-| RNF-001 | Segurança | `Se houver chaves de API ou algo do gênero, que fique em um .env que nunca é transmitido, ou que seja em variáveis de ambiente, desde que documentado. OWASP top 10 revisado.` |
-| RNF-002 | Desempenho | `Conectividade disposotivo -> n8n -> interface web verificável` |
-| RNF-003 | Disponibilidade | `Como é tudo local, conectividade é suficiente` |
-| RNF-004 | Manutenibilidade | `Cobertura de testes unitários da página web e na consulta ao banco é suficiente` |
+| RNF-001 | Segurança | Credenciais em `.env` / variáveis de ambiente; `.env` no `.gitignore`; OWASP Top 10 revisado antes de entrega |
+| RNF-002 | Desempenho | Latência Pi → banco ≤ 5 s em condições normais de rede local; verificável por inspeção no banco |
+| RNF-003 | Disponibilidade | Todos os serviços do servidor sobem com `docker compose up`; Pi reconecta automaticamente ao broker após queda |
+| RNF-004 | Manutenibilidade | Testes unitários para rotas Flask e queries ao banco; cobertura mínima das rotas `/` e `/api/status` |
+| RNF-005 | Observabilidade de dispositivo | Dashboard exibe aviso "Dispositivo offline" se nenhum registro foi inserido nos últimos 2 minutos |
+| RNF-007 | Simplicidade de código | Sem ORM, sem classes abstratas, sem design patterns desnecessários; cada arquivo tem responsabilidade única; qualquer desenvolvedor rastreia o fluxo de um dado lendo no máximo 3 arquivos |
+| RNF-008 | Observabilidade do ciclo de dados | Cada etapa Pi → Broker → n8n → PostgreSQL → Flask → Browser verificável de forma independente; logs em cada etapa visíveis via `docker compose logs`; ver tabela de pontos de verificação em `docs/REQUIREMENTS.md` |
+
+## 5. Decisões tomadas na sessão de requisitos (2026-06-08)
+
+| # | Decisão | Alternativas descartadas |
+|---|---|---|
+| D-001 | Zabbix integrado no servidor via n8n (não no Pi) | Pi chama `zabbix_sender` diretamente (era o comportamento anterior) |
+| D-002 | Tópico único JSON: `fdctmon/{device_id}/attrs` | Tópico por sensor; tópicos FIWARE legados |
+| D-003 | "Presença" no dashboard = `presenca_notificavel` (lógica 22h–6h) + distância bruta em cm | Presença booleana simples; distância bruta isolada |
+| D-004 | Threshold de dispositivo offline = 2 minutos | 30 s; 5 min; configurável por env |
+| D-005 | Retenção de dados = 90 dias via fluxo n8n agendado | Sem retenção; pg_cron; cron Linux |
+| D-006 | Atualização do dashboard via polling AJAX a cada 5 s | SSE; WebSocket; auto-refresh de página |
 
 ## 5. Restrições
 

@@ -13,7 +13,7 @@ que todos saibam o que construir antes de qualquer código ser escrito, evitando
 - Antes de planejar a implementação, para fixar critérios de aceite.
 
 # Arquivos prioritários
-Leia primeiro, se existirem: `PROJECT_BRIEF.md`, `AGENTS.md`, `docs/decision-log.md`, `README.md`.
+Leia primeiro, se existirem: `PROJECT_BRIEF.md`, `AGENTS.md`, `docs/decision-log.md`, `docs/REQUIREMENTS.md`, `README.md`.
 
 # Checklist obrigatório
 1. O objetivo está claro em 1–3 frases? Se não, proponha e confirme.
@@ -23,6 +23,7 @@ Leia primeiro, se existirem: `PROJECT_BRIEF.md`, `AGENTS.md`, `docs/decision-log
 5. Há ambiguidade, suposição implícita ou conflito? Liste e questione cada um.
 6. O que está explicitamente fora do escopo? Torne explícito.
 7. Registre decisões e respostas em `PROJECT_BRIEF.md` e `docs/decision-log.md`.
+8. Grave o documento completo de requisitos em `docs/REQUIREMENTS.md` (histórias de usuário, critérios de aceite, RNFs, fora do escopo, riscos, plano incremental e skills por fase).
 
 # Formato de resposta
 ## Análise de requisitos

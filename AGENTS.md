@@ -33,6 +33,10 @@ PROMPT_INICIAL.md       prompts de início de sessão — use como está
 CHANGELOG.md            mantido pelo agente
 skills/                 especialistas sob demanda (carregados quando acionados)
 docs/                   documentação viva — remova arquivos não usados na primeira sessão
+  REQUIREMENTS.md       produzido pela skill product-requirements; histórias de usuário,
+                        critérios de aceite, RNFs, riscos e plano incremental
+  decision-log.md       decisões arquiteturais — mantido pelo agente
+  adr/                  Architecture Decision Records individuais (opcional)
 scripts/                verificações determinísticas
 <código do projeto>     firmware/ backend/ web/ ml/ db/ ...
 ```
