@@ -6,6 +6,18 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-06-08e] — Auditoria de documentação e correções
+
+### Corrigido
+- `scripts/check_docs_sync.py` — removido `docs/SECURITY.md` (não existe); adicionado `docs/REQUIREMENTS.md` (existe e é crítico); CI estava quebrando
+- `scripts/export_historico.sh` — script agora faz operação completa: archive medicoes → export ZIP → limpeza; eliminado desalinhamento de timing com o n8n flow_retencao
+- `docs/REQUIREMENTS.md` RF-003b — atualizado para refletir implementação real (script trimestral, tabela historico, ZIP)
+- `README.md` — adicionada nota sobre variantes de fluxo n8n (homologação vs produção)
+- `n8n/README.md` — esclarecido papel do flow_retencao (alternativa manual; script é o mecanismo principal)
+- `scripts/README.md` — documentação atualizada com as 5 etapas do script e nota sobre n8n
+
+---
+
 ## [2026-06-08d] — Script de exportação trimestral do histórico
 
 ### Adicionado

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exporta medicoes_historico para ZIP trimestral e limpa a tabela.
+# Arquivo trimestral completo: medicoes → historico → ZIP → limpeza.
 # Executar a partir da raiz do projeto: ./scripts/export_historico.sh
 set -euo pipefail
 
@@ -20,29 +20,43 @@ CSV_TMP="/tmp/${FILENAME}.csv"
 
 mkdir -p "$BACKUPS_DIR"
 
-# Verifica se há registros
+# Verifica se há registros em medicoes
 COUNT=$(docker compose exec -T postgres \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAq \
-  -c "SELECT COUNT(*) FROM medicoes_historico;")
+  -c "SELECT COUNT(*) FROM medicoes;")
 
 if [ "$COUNT" -eq 0 ]; then
-  echo "Nenhum registro em medicoes_historico — nada a exportar."
+  echo "Nenhum registro em medicoes — nada a arquivar."
   exit 0
 fi
 
-echo "Exportando $COUNT registros para ${FILENAME}.zip..."
+echo "Arquivando $COUNT registros de medicoes para medicoes_historico..."
 
-# Exporta via COPY TO STDOUT — sem carregar dados em memória
+# Etapa 1: copia medicoes → historico (SQL puro, sem carga em memória)
+docker compose exec -T postgres \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "INSERT INTO medicoes_historico (id, timestamp, device_id, temperatura, umidade, fumaca, presenca_notificavel, distancia)
+      SELECT id, timestamp, device_id, temperatura, umidade, fumaca, presenca_notificavel, distancia
+      FROM medicoes;"
+
+# Etapa 2: apaga medicoes (dados já estão em historico)
+docker compose exec -T postgres \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "DELETE FROM medicoes;"
+
+echo "Exportando historico para ${FILENAME}.zip..."
+
+# Etapa 3: exporta historico para CSV via COPY TO STDOUT (sem carregar em memória)
 docker compose exec -T postgres \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   -c "\COPY medicoes_historico TO STDOUT CSV HEADER" \
   > "$CSV_TMP"
 
-# Compacta para ZIP
+# Etapa 4: compacta para ZIP (-j = não incluir caminho, apenas o arquivo)
 zip -j "${BACKUPS_DIR}/${FILENAME}.zip" "$CSV_TMP"
 rm "$CSV_TMP"
 
-# Limpa o histórico somente após o ZIP ter sido gerado
+# Etapa 5: limpa historico
 docker compose exec -T postgres \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   -c "DELETE FROM medicoes_historico;"

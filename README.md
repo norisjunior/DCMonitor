@@ -23,6 +23,9 @@ n8n disponível em `http://<servidor>:5678`
 
 Após subir, importe os fluxos n8n: veja [n8n/README.md](n8n/README.md).
 
+> **Homologação (sem Zabbix):** use `flow_principal_sem_zabbix.json` em vez de `flow_principal.json`.
+> **Produção:** `flow_principal.json` requer `zabbix_sender` instalado no container n8n (ver Dockerfile).
+
 ## Início rápido (Raspberry Pi)
 
 ```bash

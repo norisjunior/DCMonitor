@@ -55,14 +55,20 @@ Substituir a infraestrutura FIWARE por **n8n + PostgreSQL + Mosquitto**, mantend
 
 ---
 
-### RF-003b — Fluxo n8n de retenção (90 dias)
+### RF-003b — Arquivo trimestral e retenção de dados
 
-> *Como administrador, quero que registros com mais de 90 dias sejam deletados automaticamente, para que o banco não cresça indefinidamente.*
+> *Como administrador, quero que os dados sejam arquivados trimestralmente e o banco operacional seja limpo, para que medicoes permaneça leve e o histórico completo seja preservado.*
 
 **Critérios de aceite:**
-- Segundo fluxo n8n com Schedule Trigger (diário, ex.: 02h00)
-- Executa `DELETE FROM medicoes WHERE timestamp < NOW() - INTERVAL '90 days'`
-- Após execução manual com dados de teste, registros antigos removidos e recentes preservados
+- Tabela `medicoes_historico` no PostgreSQL recebe todos os registros arquivados (preservação permanente)
+- Script `scripts/export_historico.sh` executa no último dia de cada trimestre via cron do servidor:
+  1. Move `medicoes` → `medicoes_historico` (INSERT SELECT, sem carga em memória)
+  2. Apaga `medicoes`
+  3. Exporta `medicoes_historico` para `backups/YYYY-Ntrim.zip`
+  4. Apaga `medicoes_historico`
+- Resultado: 4 arquivos ZIP por ano (`2026-1trim.zip` … `2026-4trim.zip`), cada um com um trimestre completo
+- Fluxo n8n `flow_retencao.json` (3 nós: agenda trimestral → INSERT SELECT → DELETE) disponível como alternativa manual via UI do n8n
+- Após execução, `SELECT COUNT(*) FROM medicoes` retorna 0; ZIP gerado em `backups/`
 
 ---
 

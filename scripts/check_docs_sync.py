@@ -12,7 +12,7 @@ DOCS_OBRIGATORIOS = [
     "PROJECT_BRIEF.md",
     "CHANGELOG.md",
     "docs/ARCHITECTURE.md",
-    "docs/SECURITY.md",
+    "docs/REQUIREMENTS.md",
     "docs/TESTING_STRATEGY.md",
 ]
 

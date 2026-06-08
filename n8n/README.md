@@ -35,9 +35,13 @@ Menu → Credentials → New → Postgres
 
 | Arquivo | Usar quando | Zabbix necessário? |
 |---|---|---|
-| `flow_principal.json` | Produção — envia ao banco **e** ao Zabbix | Sim |
+| `flow_principal.json` | Produção — envia ao banco **e** ao Zabbix | Sim (`zabbix_sender` no container) |
 | `flow_principal_sem_zabbix.json` | Homologação / teste local — somente banco | Não |
-| `flow_retencao.json` | Ambos os ambientes — arquivo trimestral | Não |
+| `flow_retencao.json` | Alternativa manual de arquivo via UI do n8n | Não |
+
+> **Arquivo trimestral automatizado:** use `scripts/export_historico.sh` via cron no servidor.
+> Ele faz a operação completa (archive + ZIP + limpeza) sem depender do n8n.
+> O `flow_retencao.json` pode ficar inativo; use-o apenas para acionar o arquivo manualmente pela UI.
 
 ## 4. Importar os fluxos
 
