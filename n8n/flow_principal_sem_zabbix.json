@@ -36,10 +36,8 @@
       "position": [540, 300],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO medicoes (device_id, temperatura, umidade, fumaca, presenca_notificavel, distancia) VALUES ($1, $2, $3, $4, $5, $6)",
-        "options": {
-          "queryParams": "={{ $json.device_id }},={{ $json.temp }},={{ $json.umid }},={{ $json.fumaca }},={{ $json.presenca_notificavel }},={{ $json.distancia }}"
-        }
+        "query": "=INSERT INTO medicoes (device_id, temperatura, umidade, fumaca, presenca_notificavel, distancia) VALUES ('{{ $json.device_id }}', {{ $json.temp !== null ? $json.temp : 'NULL' }}, {{ $json.umid !== null ? $json.umid : 'NULL' }}, {{ $json.fumaca }}, {{ $json.presenca_notificavel }}, {{ $json.distancia }})",
+        "options": {}
       },
       "credentials": {
         "postgres": {
