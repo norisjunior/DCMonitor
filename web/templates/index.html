@@ -105,13 +105,12 @@
     }
 
     /* Cores por tipo */
-    .card.temperatura .card-value { color: #ffa657; }
-    .card.umidade     .card-value { color: #58a6ff; }
+    /* temperatura e umidade: cor definida por JS conforme limiares */
     .card.fumaca.alerta  .card-value { color: #f85149; }
     .card.fumaca.normal  .card-value { color: #3fb950; }
     .card.presenca.alerta .card-value { color: #f85149; }
     .card.presenca.normal .card-value { color: #3fb950; }
-    .card.distancia  .card-value { color: #d2a8ff; }
+    .card.distancia  .card-value { color: #c9d1d9; }
 
     .card.alerta { border-color: #f85149; background: #1a0d0d; }
 
@@ -186,6 +185,22 @@
   <script>
     const POLL_INTERVAL_MS = 5000;
 
+    // Temperatura: verde 15–24 | amarelo 12–15 e 24–25 | vermelho fora disso
+    function corTemperatura(t) {
+      if (t === null || t === undefined) return '#8b949e';
+      if (t >= 15 && t <= 24)                        return '#3fb950'; // verde
+      if ((t > 12 && t < 15) || (t > 24 && t < 25)) return '#d29922'; // amarelo
+      return '#f85149';                                                  // vermelho
+    }
+
+    // Umidade: verde 30–55 | amarelo 25–30 e 55–60 | vermelho fora disso
+    function corUmidade(u) {
+      if (u === null || u === undefined) return '#8b949e';
+      if (u >= 30 && u <= 55)                        return '#3fb950'; // verde
+      if ((u > 25 && u < 30) || (u > 55 && u < 60)) return '#d29922'; // amarelo
+      return '#f85149';                                                  // vermelho
+    }
+
     function formataTimestamp(iso) {
       const d = new Date(iso);
       return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -208,10 +223,12 @@
       if (!dados.registro) return;
       const r = dados.registro;
 
-      document.getElementById('val-temp').textContent =
-        r.temperatura !== null ? r.temperatura : '—';
-      document.getElementById('val-umid').textContent =
-        r.umidade !== null ? r.umidade : '—';
+      const elTemp = document.getElementById('val-temp');
+      const elUmid = document.getElementById('val-umid');
+      elTemp.textContent  = r.temperatura !== null ? r.temperatura : '—';
+      elTemp.style.color  = corTemperatura(r.temperatura);
+      elUmid.textContent  = r.umidade !== null ? r.umidade : '—';
+      elUmid.style.color  = corUmidade(r.umidade);
 
       // Fumaça
       const cardFumaca = document.getElementById('card-fumaca');
