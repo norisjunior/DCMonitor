@@ -1,6 +1,9 @@
-FROM n8nio/n8n:2.18.4
+# Etapa 1: Alpine padrão (tem apk) — apenas para obter o binário zabbix_sender
+FROM alpine:3.22 AS zabbix-stage
+RUN apk add --no-cache zabbix-utils
 
-# zabbix-sender: pendente para produção.
-# A imagem n8n:latest não expõe gerenciador de pacotes padrão (nem apk nem apt-get).
-# Quando necessário, investigar a base exata de n8n:2.18.4 e adicionar a instalação aqui.
-# Para homologação, usar flow_principal_sem_zabbix.json (sem nó Zabbix).
+# Etapa 2: imagem final — copia só o binário para não precisar de apk
+FROM n8nio/n8n:2.18.4
+USER root
+COPY --from=zabbix-stage /usr/bin/zabbix_sender /usr/local/bin/zabbix_sender
+USER node

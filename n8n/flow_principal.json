@@ -52,14 +52,14 @@
     {
       "id": "1a2b3c4d-0001-0001-0001-000000000004",
       "name": "Envia ao Zabbix",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [760, 300],
       "parameters": {
-        "command": "zabbix_sender -z \"$ZABBIX_SERVER\" -s \"$ZABBIX_HOST_NAME\" -k temperatura -o \"={{ $json.temp }}\" && zabbix_sender -z \"$ZABBIX_SERVER\" -s \"$ZABBIX_HOST_NAME\" -k umidade -o \"={{ $json.umid }}\" && zabbix_sender -z \"$ZABBIX_SERVER\" -s \"$ZABBIX_HOST_NAME\" -k fumaca -o \"={{ $json.fumaca }}\" && zabbix_sender -z \"$ZABBIX_SERVER\" -s \"$ZABBIX_HOST_NAME\" -k presenca -o \"={{ $json.presenca_notificavel }}\""
+        "jsCode": "const { execSync } = require('child_process');\n\nconst server = process.env.ZABBIX_SERVER;\nconst host   = process.env.ZABBIX_HOST_NAME;\nconst d      = $input.first().json;\n\nconst send = (key, value) => {\n  if (value === null || value === undefined) return;\n  execSync(`zabbix_sender -z \"${server}\" -s \"${host}\" -k ${key} -o \"${value}\"`);\n};\n\ntry {\n  send('temperatura', d.temp);\n  send('umidade',     d.umid);\n  send('fumaca',      d.fumaca);\n  send('presenca',    d.presenca_notificavel);\n} catch (e) {\n  // Falha no Zabbix não bloqueia o fluxo (continueOnFail)\n}\n\nreturn [$input.first()];"
       },
       "continueOnFail": true,
-      "notes": "continueOnFail=true: falha no Zabbix não bloqueia o fluxo. Variáveis ZABBIX_SERVER e ZABBIX_HOST_NAME vêm do docker-compose (.env)."
+      "notes": "continueOnFail=true: falha no Zabbix não bloqueia o fluxo. ZABBIX_SERVER e ZABBIX_HOST_NAME vêm do docker-compose (.env)."
     }
   ],
   "connections": {

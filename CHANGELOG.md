@@ -6,6 +6,14 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-06-08f] — Correção do zabbix_sender no container n8n
+
+### Alterado
+- `n8n/Dockerfile` — multi-stage build: copia `zabbix_sender` de `alpine:3.22` (tem apk) para a imagem hardened do n8n (sem apk)
+- `n8n/flow_principal.json` — nó "Envia ao Zabbix" migrado de `executeCommand` (não existe no n8n 2.18.4) para `Code` com `child_process`; lê `ZABBIX_SERVER` e `ZABBIX_HOST_NAME` de `process.env`
+
+---
+
 ## [2026-06-08e] — Auditoria de documentação e correções
 
 ### Corrigido
