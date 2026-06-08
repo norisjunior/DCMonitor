@@ -1,0 +1,20 @@
+# Segredos — nunca commitar
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Projeto antigo — node_modules não precisa de versionamento
+OLD_PROJECT/FdctMonSys-Web/node_modules/
+
+# Worktrees locais
+.worktrees/
+
+# Editor
+.vscode/
+*.swp

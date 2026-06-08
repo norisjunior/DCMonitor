@@ -1,0 +1,4 @@
+paho-mqtt==1.6.1
+Adafruit_DHT==1.4.0
+RPi.GPIO==0.7.1
+python-dotenv==1.0.1

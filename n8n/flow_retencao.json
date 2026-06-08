@@ -1,0 +1,51 @@
+{
+  "name": "FdctMonSys - Retenção 90 dias",
+  "nodes": [
+    {
+      "id": "2b3c4d5e-0002-0002-0002-000000000001",
+      "name": "Agenda Diária 02h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * *"
+            }
+          ]
+        }
+      },
+      "notes": "Executa diariamente às 02:00. Para testar manualmente: clique em 'Test workflow' na UI do n8n."
+    },
+    {
+      "id": "2b3c4d5e-0002-0002-0002-000000000002",
+      "name": "DELETE medicoes antigas",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [320, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM medicoes WHERE timestamp < NOW() - INTERVAL '90 days'",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "2",
+          "name": "FdctMonSys PostgreSQL"
+        }
+      },
+      "notes": "Verificação: SELECT COUNT(*) FROM medicoes WHERE timestamp < NOW() - INTERVAL '90 days'; deve retornar 0 após execução."
+    }
+  ],
+  "connections": {
+    "Agenda Diária 02h": {
+      "main": [[{ "node": "DELETE medicoes antigas", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
