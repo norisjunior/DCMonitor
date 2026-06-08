@@ -6,6 +6,15 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-06-08d] — Script de exportação trimestral do histórico
+
+### Adicionado
+- `scripts/export_historico.sh` — exporta `medicoes_historico` para `backups/YYYY-Ntrim.zip` via `psql COPY TO STDOUT` e limpa a tabela; cron no host, sem carregar dados em memória
+- `scripts/README.md` — documentação dos scripts administrativos com setup de cron
+- `.gitignore` — adicionado `backups/`
+
+---
+
 ## [2026-06-08c] — Arquivo trimestral simplificado (SQL puro, sem carga em memória)
 
 ### Alterado

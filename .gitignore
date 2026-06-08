@@ -15,6 +15,9 @@ OLD_PROJECT/FdctMonSys-Web/node_modules/
 # Worktrees locais
 .worktrees/
 
+# Backups trimestrais gerados pelo script export_historico.sh
+backups/
+
 # Editor
 .vscode/
 *.swp
