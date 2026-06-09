@@ -6,6 +6,18 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-06-09b] — Cadência de 10s e histerese de fumaça
+
+### Alterado
+- `raspberry/sensor_publisher.py` — fumaça/presença são amostradas a cada 2 s, mas o payload MQTT é publicado a cada 10 s
+- `raspberry/sensor_publisher.py` — `fumaca` passa por histerese: 3 leituras consecutivas para entrar ou sair de alerta
+- `raspberry/sensor_simulator.py` — simulador acompanha a mesma cadência e histerese do dispositivo
+- `web/templates/index.html` — polling do dashboard ajustado para 10 s
+- `web/tests/test_sensor_logic.py` — adicionados testes unitários da histerese de fumaça
+- `PROJECT_BRIEF.md`, `docs/*` e `n8n/README.md` — temporizações e decisão arquitetural atualizadas
+
+---
+
 ## [2026-06-09] — Autenticação MQTT no Mosquitto
 
 ### Corrigido

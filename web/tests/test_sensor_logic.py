@@ -24,7 +24,10 @@ os.environ.setdefault("MQTT_BROKER_PORT", "1883")
 # Ajusta path para o diretório do Pi
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "raspberry"))
 
-from sensor_publisher import calcula_presenca_notificavel  # noqa: E402
+from sensor_publisher import (  # noqa: E402
+    calcula_fumaca_confirmada,
+    calcula_presenca_notificavel,
+)
 
 
 # ── Presença fora do threshold de distância ───────────────────────────────────
@@ -82,6 +85,37 @@ def test_presenca_as_6h_nao_notifica(monkeypatch):
     monkeypatch.setattr("sensor_publisher.datetime.datetime",
                         _DatetimeMock(hora))
     assert calcula_presenca_notificavel(10.0) == 0
+
+
+# ── Histerese de fumaça ───────────────────────────────────────────────────────
+
+def test_fumaca_nao_confirma_com_pico_isolado():
+    assert calcula_fumaca_confirmada(0, [0, 1, 0]) == 0
+
+
+def test_fumaca_confirma_com_tres_leituras_consecutivas():
+    assert calcula_fumaca_confirmada(0, [1, 1, 1]) == 1
+
+
+def test_fumaca_mantem_alerta_com_leitura_instavel():
+    assert calcula_fumaca_confirmada(1, [1, 0, 1]) == 1
+
+
+def test_fumaca_limpa_com_tres_leituras_normais():
+    assert calcula_fumaca_confirmada(1, [0, 0, 0]) == 0
+
+
+def test_fumaca_nao_confirma_com_duas_fumacas_intercaladas():
+    estado = 0
+    sequencia = [1, 1, 0, 1, 1, 0, 1, 1, 0]
+    janela = []
+
+    for leitura in sequencia:
+        janela.append(leitura)
+        janela = janela[-3:]
+        estado = calcula_fumaca_confirmada(estado, janela)
+
+    assert estado == 0
 
 
 # ── Helper ────────────────────────────────────────────────────────────────────

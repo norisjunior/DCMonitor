@@ -222,7 +222,7 @@ Ou force instantaneamente com uma mensagem com timestamp antigo via SQL:
 docker compose exec postgres psql -U fdctmon -d fdctmon \
   -c "UPDATE medicoes SET timestamp = NOW() - INTERVAL '5 minutes' WHERE id = (SELECT MAX(id) FROM medicoes);"
 ```
-Aguarde até 5 s (próximo polling) e o banner aparece.
+Aguarde até 10 s (próximo polling) e o banner aparece.
 
 ---
 
@@ -315,13 +315,14 @@ cd raspberry
 python3 sensor_simulator.py
 ```
 
-Você verá logs a cada 2 s:
+Você verá logs de amostragem a cada 2 s e publicação MQTT a cada 10 s:
 ```
 2026-06-08 14:30:00 [INFO] Simulador iniciando — device_id=homolog_001
 2026-06-08 14:30:00 [INFO] Conectando ao broker localhost:1883 ...
 2026-06-08 14:30:00 [INFO] MQTT conectado ao broker localhost:1883
+2026-06-08 14:30:00 [INFO] MQ-2 simulado: raw=0 historico=[0] confirmado=0
 2026-06-08 14:30:00 [INFO] → fdctmon/homolog_001/attrs: {"device_id": "homolog_001", "temp": 24.7, "umid": 58.3, "fumaca": 0, "presenca_notificavel": 0, "distancia": 287.4}
-2026-06-08 14:30:02 [INFO] → fdctmon/homolog_001/attrs: {"device_id": "homolog_001", "temp": 24.7, ...}
+2026-06-08 14:30:02 [INFO] MQ-2 simulado: raw=0 historico=[0, 0] confirmado=0
 ```
 
 **Terminal 3 — confirmar gravação no banco:**
@@ -333,14 +334,14 @@ watch -n 3 'docker compose exec -T postgres psql -U fdctmon -d fdctmon \
 ### 3.5 Verificar o dashboard
 
 Abra `http://localhost:5000` no browser.
-Os valores devem atualizar a cada 5 s com os dados gerados pelo simulador.
+Os valores devem atualizar a cada 10 s com os dados gerados pelo simulador.
 
 Para testar o banner de offline, encerre o simulador com `Ctrl+C` e aguarde 2 minutos.
 
 ### 3.6 Verificar execuções no n8n
 
 Acesse `http://localhost:5678` → abra o fluxo `FdctMonSys - Principal SEM Zabbix`
-→ aba **Executions**. Deve mostrar uma execução bem-sucedida a cada 2 s.
+→ aba **Executions**. Deve mostrar uma execução bem-sucedida a cada 10 s.
 
 ---
 

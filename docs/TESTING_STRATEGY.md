@@ -39,4 +39,10 @@ mosquitto_pub -h localhost -p 1883 \
 curl http://localhost:5000/api/status
 ```
 
+## Temporização esperada
+
+- Pi/simulador: amostra fumaça/presença a cada 2 s e publica MQTT a cada 10 s.
+- MQ-2: `fumaca` só muda após 3 leituras consecutivas no novo estado.
+- Dashboard: polling de `/api/status` a cada 10 s.
+
 Para o guia completo de teste local no WSL, veja [TESTING_LOCAL.md](TESTING_LOCAL.md).

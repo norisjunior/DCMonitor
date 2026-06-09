@@ -60,4 +60,4 @@ curl http://servidor:5000/api/status
 # Verificar em: Zabbix → Monitoring → Latest Data → host configurado
 ```
 
-Dashboard disponível em `http://servidor:5000`.
+Dashboard disponível em `http://servidor:5000`; a página consulta `/api/status` a cada 10 s.

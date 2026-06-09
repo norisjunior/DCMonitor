@@ -11,6 +11,7 @@ import json
 import datetime
 import random
 import logging
+from collections import deque
 
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
@@ -30,8 +31,10 @@ MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 DEVICE_ID   = os.getenv("SIMULATOR_DEVICE_ID", "simulator_001")
 TOPIC       = f"fdctmon/{DEVICE_ID}/attrs"
 
-LOOP_INTERVAL_S = 2
+SENSOR_SAMPLE_INTERVAL_S = 2
+PUBLISH_INTERVAL_S = 10
 TEMP_INTERVAL_S = 30
+FUMACA_HYSTERESIS_SAMPLES = 3
 
 PRESENCE_THRESHOLD_CM   = 200
 PRESENCE_ALERT_HOUR_START = 22
@@ -68,6 +71,18 @@ def calcula_presenca_notificavel(distancia):
         or hora_atual < PRESENCE_ALERT_HOUR_END
     )
     return 1 if em_horario_alerta else 0
+
+
+def calcula_fumaca_confirmada(estado_atual, leituras_recentes):
+    if len(leituras_recentes) < FUMACA_HYSTERESIS_SAMPLES:
+        return estado_atual
+
+    janela = list(leituras_recentes)[-FUMACA_HYSTERESIS_SAMPLES:]
+    if all(valor == 1 for valor in janela):
+        return 1
+    if all(valor == 0 for valor in janela):
+        return 0
+    return estado_atual
 
 
 def on_connect(client, userdata, flags, rc):
@@ -107,6 +122,9 @@ def main():
     temp_cache  = None
     umid_cache  = None
     tempo_ultima_temp = 0
+    tempo_ultima_publicacao = 0
+    fumaca_confirmada = 0
+    historico_fumaca = deque(maxlen=FUMACA_HYSTERESIS_SAMPLES)
 
     try:
         while True:
@@ -118,20 +136,35 @@ def main():
                 tempo_ultima_temp = agora
 
             distancia            = gera_distancia()
-            fumaca               = gera_fumaca()
+            fumaca_raw           = gera_fumaca()
+            historico_fumaca.append(fumaca_raw)
+            fumaca_confirmada    = calcula_fumaca_confirmada(
+                fumaca_confirmada,
+                historico_fumaca,
+            )
             presenca_notificavel = calcula_presenca_notificavel(distancia)
 
-            payload = {
-                "device_id":            DEVICE_ID,
-                "temp":                 temp_cache,
-                "umid":                 umid_cache,
-                "fumaca":               fumaca,
-                "presenca_notificavel": presenca_notificavel,
-                "distancia":            distancia,
-            }
+            log.info(
+                "MQ-2 simulado: raw=%d historico=%s confirmado=%d",
+                fumaca_raw,
+                list(historico_fumaca),
+                fumaca_confirmada,
+            )
 
-            publica(client, payload)
-            time.sleep(LOOP_INTERVAL_S)
+            if agora - tempo_ultima_publicacao >= PUBLISH_INTERVAL_S:
+                payload = {
+                    "device_id":            DEVICE_ID,
+                    "temp":                 temp_cache,
+                    "umid":                 umid_cache,
+                    "fumaca":               fumaca_confirmada,
+                    "presenca_notificavel": presenca_notificavel,
+                    "distancia":            distancia,
+                }
+
+                publica(client, payload)
+                tempo_ultima_publicacao = agora
+
+            time.sleep(SENSOR_SAMPLE_INTERVAL_S)
 
     except KeyboardInterrupt:
         log.info("Simulador encerrado.")

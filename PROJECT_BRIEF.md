@@ -25,12 +25,12 @@ Preencha apenas o que se aplica. Deixe os demais como `N/A`.
 
 | ID | Requisito | Prioridade | Critério de aceite |
 |---|---|---|---|
-| RF-001 | Dispositivo IoT publica JSON unificado no tópico `fdctmon/{device_id}/attrs` via MQTT a cada 2 s; temperatura usa cache local entre leituras de 30 s | Alta | Mensagem JSON `{"temp":X,"umid":X,"fumaca":X,"presenca_notificavel":X,"distancia":X,"device_id":"..."}` visível no broker; n8n recebe e armazena |
+| RF-001 | Dispositivo IoT amostra fumaça/presença a cada 2 s e publica JSON unificado no tópico `fdctmon/{device_id}/attrs` via MQTT a cada 10 s; temperatura usa cache local entre leituras de 30 s; fumaça usa histerese no dispositivo | Alta | Mensagem JSON `{"temp":X,"umid":X,"fumaca":X,"presenca_notificavel":X,"distancia":X,"device_id":"..."}` visível no broker; `fumaca` só muda após 3 leituras consecutivas no novo estado; n8n recebe e armazena |
 | RF-002 | Todas as medições armazenadas no PostgreSQL com timestamp | Alta | Tabela `medicoes` contém linha para cada mensagem MQTT recebida; SELECT retorna registros com timestamp correto |
 | RF-003 | Fluxo n8n principal: subscribe MQTT → parse JSON → INSERT PostgreSQL | Alta | n8n executa sem erros; registro inserido no banco após cada publicação do Pi |
 | RF-003b | Fluxo n8n de retenção: executa diariamente e deleta registros com mais de 90 dias | Baixa | Após execução manual do fluxo, registros com `timestamp < NOW() - INTERVAL '90 days'` são removidos |
 | RF-004 | Dispositivo IoT não armazena medições localmente; apenas publica via MQTT | Média | Nenhum arquivo local ou banco é gravado no Pi; todo armazenamento ocorre no servidor |
-| RF-005 | Dashboard web (Flask) exibe temperatura, umidade, fumaça, presença notificável e distância em tempo real | Alta | Página atualiza via AJAX a cada 5 s; valores refletem última medição do banco; alerta visual exibido se último registro tiver mais de 2 min |
+| RF-005 | Dashboard web (Flask) exibe temperatura, umidade, fumaça, presença notificável e distância em tempo real | Alta | Página atualiza via AJAX a cada 10 s; valores refletem última medição do banco; alerta visual exibido se último registro tiver mais de 2 min |
 | RF-006 | Servidor encaminha medições ao Zabbix (host `10.32.8.57`, chaves: `temperatura`, `umidade`, `fumaca`, `presenca`) | Alta | `zabbix_sender` executado no servidor a cada mensagem MQTT; itens atualizados no Zabbix confirmados via latest data |
 
 ## 4. Requisitos não-funcionais
@@ -38,7 +38,7 @@ Preencha apenas o que se aplica. Deixe os demais como `N/A`.
 | ID | Requisito | Critério de aceite |
 |---|---|---|
 | RNF-001 | Segurança | Credenciais em `.env` / variáveis de ambiente; `.env` no `.gitignore`; OWASP Top 10 revisado antes de entrega |
-| RNF-002 | Desempenho | Latência Pi → banco ≤ 5 s em condições normais de rede local; verificável por inspeção no banco |
+| RNF-002 | Desempenho | Latência publicação MQTT → banco ≤ 5 s em condições normais de rede local; verificável por inspeção no banco |
 | RNF-003 | Disponibilidade | Todos os serviços do servidor sobem com `docker compose up`; Pi reconecta automaticamente ao broker após queda |
 | RNF-004 | Manutenibilidade | Testes unitários para rotas Flask e queries ao banco; cobertura mínima das rotas `/` e `/api/status` |
 | RNF-005 | Observabilidade de dispositivo | Dashboard exibe aviso "Dispositivo offline" se nenhum registro foi inserido nos últimos 2 minutos |
@@ -54,7 +54,7 @@ Preencha apenas o que se aplica. Deixe os demais como `N/A`.
 | D-003 | "Presença" no dashboard = `presenca_notificavel` (lógica 22h–6h) + distância bruta em cm | Presença booleana simples; distância bruta isolada |
 | D-004 | Threshold de dispositivo offline = 2 minutos | 30 s; 5 min; configurável por env |
 | D-005 | Retenção de dados = 90 dias via fluxo n8n agendado | Sem retenção; pg_cron; cron Linux |
-| D-006 | Atualização do dashboard via polling AJAX a cada 5 s | SSE; WebSocket; auto-refresh de página |
+| D-006 | Atualização do dashboard via polling AJAX a cada 10 s | SSE; WebSocket; auto-refresh de página |
 
 ## 5. Restrições
 

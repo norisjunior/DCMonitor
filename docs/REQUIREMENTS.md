@@ -18,7 +18,9 @@ Substituir a infraestrutura FIWARE por **n8n + PostgreSQL + Mosquitto**, mantend
 > *Como engenheiro do NOC, quero que o Raspberry Pi colete continuamente os sensores e publique os dados via MQTT, para que o servidor possa armazenar e exibir as condições do datacenter.*
 
 **Critérios de aceite:**
-- Presença e fumaça coletados a cada 2 s; temperatura/umidade a cada 30 s com cache local entre leituras
+- Presença e fumaça amostrados localmente a cada 2 s; payload publicado via MQTT a cada 10 s
+- Temperatura/umidade coletadas a cada 30 s com cache local entre leituras
+- `fumaca` publicado usa histerese: muda para alerta ou normal somente após 3 leituras consecutivas no novo estado
 - Publicação MQTT autenticada com `MQTT_USERNAME` e `MQTT_PASSWORD` vindos do `.env`
 - Payload JSON publicado em `fdctmon/{device_id}/attrs`:
   ```json
@@ -91,7 +93,7 @@ Substituir a infraestrutura FIWARE por **n8n + PostgreSQL + Mosquitto**, mantend
 - Rota `GET /` retorna página HTML com valores de temperatura, umidade, fumaça, presença notificável e distância
 - Rota `GET /api/status` retorna JSON com último registro + campo `online: true/false`
 - `online: false` quando `NOW() - timestamp_ultimo_registro > 2 minutos`
-- JavaScript na página chama `/api/status` a cada 5 s e atualiza os valores sem recarregar a página
+- JavaScript na página chama `/api/status` a cada 10 s e atualiza os valores sem recarregar a página
 - Banner/alerta visível quando `online: false`
 
 ---
@@ -113,7 +115,7 @@ Substituir a infraestrutura FIWARE por **n8n + PostgreSQL + Mosquitto**, mantend
 | ID | Requisito | Critério verificável |
 |---|---|---|
 | RNF-001 | Segredos em `.env` | `.env` no `.gitignore`; `.env.example` documentado com placeholders; Mosquitto com `allow_anonymous false`; senha/hash MQTT não versionados |
-| RNF-002 | Latência Pi → banco | `timestamp` no banco ≤ 5 s após publicação MQTT |
+| RNF-002 | Latência publicação MQTT → banco | `timestamp` no banco ≤ 5 s após publicação MQTT |
 | RNF-003 | Startup único | `docker compose up` sobe os 4 serviços sem erro; `docker compose ps` mostra todos `Up` |
 | RNF-004 | Reconexão do Pi | Pi reconecta ao broker em até 30 s após queda simulada de rede |
 | RNF-005 | Testes unitários | `pytest` passa com cobertura das rotas `/` e `/api/status` e da função `online/offline` |
@@ -129,7 +131,7 @@ Substituir a infraestrutura FIWARE por **n8n + PostgreSQL + Mosquitto**, mantend
 | **Broker → n8n** | UI do n8n → aba "Executions" do fluxo principal — cada execução mostra o payload recebido e o resultado do INSERT |
 | **n8n → PostgreSQL** | `psql -c "SELECT * FROM medicoes ORDER BY timestamp DESC LIMIT 5"` — registros mais recentes visíveis |
 | **PostgreSQL → Flask** | `curl http://<servidor>/api/status` — retorna JSON com último registro e flag `online` |
-| **Flask → Browser** | DevTools do browser (aba Network) — requisições a `/api/status` a cada 5 s com resposta 200 |
+| **Flask → Browser** | DevTools do browser (aba Network) — requisições a `/api/status` a cada 10 s com resposta 200 |
 | **n8n → Zabbix** | Zabbix frontend → "Latest Data" para o host `SALA COFRE` — valores atualizados |
 
 ### RNF-007 — Princípios de simplicidade de código
@@ -173,7 +175,7 @@ Substituir a infraestrutura FIWARE por **n8n + PostgreSQL + Mosquitto**, mantend
 | **F1 — Infra** | `docker-compose.yml` (Mosquitto + PostgreSQL + n8n + Flask); `.env.example`; schema SQL | `devops-ci`, `database` |
 | **F2 — IoT Device** | `raspberry/sensor_publisher.py`: JSON unificado, sem FIWARE, sem armazenamento local, cache de temperatura | `embedded-iot` |
 | **F3 — n8n flows** | Fluxo principal (MQTT → Postgres + Zabbix) + fluxo de retenção (Schedule → DELETE 90d) exportados como JSON | `system-integrator`, `backend-api` |
-| **F4 — Flask Dashboard** | Rotas `/` e `/api/status`; template HTML com AJAX polling 5 s; banner offline; distância + presença notificável | `frontend-web`, `backend-api`, `style-guardian` |
+| **F4 — Flask Dashboard** | Rotas `/` e `/api/status`; template HTML com AJAX polling 10 s; banner offline; distância + presença notificável | `frontend-web`, `backend-api`, `style-guardian` |
 | **F5 — Testes & Revisão** | `pytest` Flask + queries; `security-review`; `code-review`; `CHANGELOG.md` e `docs/` atualizados | `qa-testing`, `security-review`, `code-review`, `documentation` |
 
 > F1 é pré-requisito de F3 e F4. F2 pode correr em paralelo com F3/F4. F5 é obrigatório antes de qualquer entrega.

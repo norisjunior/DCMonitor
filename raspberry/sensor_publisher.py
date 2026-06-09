@@ -10,6 +10,7 @@ import json
 import datetime
 import uuid
 import logging
+from collections import deque
 
 import RPi.GPIO as GPIO
 import Adafruit_DHT
@@ -43,8 +44,10 @@ PRESENCE_THRESHOLD_CM   = 200   # distância abaixo disso = presença detectada
 PRESENCE_ALERT_HOUR_START = 22  # início do período de alerta (22h)
 PRESENCE_ALERT_HOUR_END   = 6   # fim do período de alerta (6h)
 
-LOOP_INTERVAL_S = 2    # intervalo da coleta de presença/fumaça
-TEMP_INTERVAL_S = 30   # intervalo da coleta de temperatura/umidade
+SENSOR_SAMPLE_INTERVAL_S = 2  # amostragem local de presença/fumaça
+PUBLISH_INTERVAL_S = 10       # intervalo de publicação MQTT
+TEMP_INTERVAL_S = 30          # intervalo da coleta de temperatura/umidade
+FUMACA_HYSTERESIS_SAMPLES = 3 # 3 amostras consecutivas para mudar estado
 
 # ── Setup GPIO ────────────────────────────────────────────────────────────────
 GPIO.setmode(GPIO.BCM)
@@ -74,7 +77,7 @@ def le_distancia():
 
 def le_fumaca():
     fumaca = 1 if GPIO.input(MQ2_DO_PIN) == GPIO.LOW else 0
-    log.info("MQ-2: fumaca=%d", fumaca)
+    log.info("MQ-2: fumaca_raw=%d", fumaca)
     return fumaca
 
 
@@ -97,6 +100,19 @@ def calcula_presenca_notificavel(distancia):
         or hora_atual < PRESENCE_ALERT_HOUR_END
     )
     return 1 if em_horario_alerta else 0
+
+
+def calcula_fumaca_confirmada(estado_atual, leituras_recentes):
+    """Aplica histerese: muda estado só com N leituras consecutivas iguais."""
+    if len(leituras_recentes) < FUMACA_HYSTERESIS_SAMPLES:
+        return estado_atual
+
+    janela = list(leituras_recentes)[-FUMACA_HYSTERESIS_SAMPLES:]
+    if all(valor == 1 for valor in janela):
+        return 1
+    if all(valor == 0 for valor in janela):
+        return 0
+    return estado_atual
 
 
 # ── MQTT ──────────────────────────────────────────────────────────────────────
@@ -140,6 +156,9 @@ def main():
     temp_cache  = None
     umid_cache  = None
     tempo_ultima_temp = 0
+    tempo_ultima_publicacao = 0
+    fumaca_confirmada = 0
+    historico_fumaca = deque(maxlen=FUMACA_HYSTERESIS_SAMPLES)
 
     try:
         while True:
@@ -151,20 +170,34 @@ def main():
                 tempo_ultima_temp = agora
 
             distancia            = le_distancia()
-            fumaca               = le_fumaca()
+            fumaca_raw           = le_fumaca()
+            historico_fumaca.append(fumaca_raw)
+            fumaca_confirmada    = calcula_fumaca_confirmada(
+                fumaca_confirmada,
+                historico_fumaca,
+            )
             presenca_notificavel = calcula_presenca_notificavel(distancia)
 
-            payload = {
-                "device_id":            DEVICE_ID,
-                "temp":                 temp_cache,
-                "umid":                 umid_cache,
-                "fumaca":               fumaca,
-                "presenca_notificavel": presenca_notificavel,
-                "distancia":            distancia,
-            }
+            log.info(
+                "MQ-2: historico=%s fumaca_confirmada=%d",
+                list(historico_fumaca),
+                fumaca_confirmada,
+            )
 
-            publica(client, payload)
-            time.sleep(LOOP_INTERVAL_S)
+            if agora - tempo_ultima_publicacao >= PUBLISH_INTERVAL_S:
+                payload = {
+                    "device_id":            DEVICE_ID,
+                    "temp":                 temp_cache,
+                    "umid":                 umid_cache,
+                    "fumaca":               fumaca_confirmada,
+                    "presenca_notificavel": presenca_notificavel,
+                    "distancia":            distancia,
+                }
+
+                publica(client, payload)
+                tempo_ultima_publicacao = agora
+
+            time.sleep(SENSOR_SAMPLE_INTERVAL_S)
 
     except KeyboardInterrupt:
         log.info("Encerrado pelo usuário.")

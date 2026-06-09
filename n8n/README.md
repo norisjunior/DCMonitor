@@ -87,6 +87,9 @@ Na UI do n8n: abra o fluxo → clique em "Test workflow" → confirme que não h
 | INSERT medicoes | Grava no banco com timestamp automático do servidor |
 | Envia ao Zabbix | Chama `zabbix_sender` para os 4 itens; `continueOnFail=true` |
 
+O fluxo principal não possui timer próprio: cada execução acontece quando uma
+mensagem MQTT chega. A cadência esperada do Pi é uma publicação a cada 10 s.
+
 ### flow_principal_sem_zabbix.json (homologação)
 | Nó | Responsabilidade |
 |----|-----------------|
