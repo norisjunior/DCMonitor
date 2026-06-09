@@ -20,6 +20,15 @@
 
 ---
 
+**Data:** 2026-06-09
+**Decisão:** Exigir autenticação no Mosquitto sem versionar senha ou hash
+**Contexto:** A revisão final identificou que `allow_anonymous true` permitia publish não autorizado na rede interna, podendo gerar medições falsas no PostgreSQL, dashboard e Zabbix.
+**Opção escolhida:** Mosquitto com `allow_anonymous false`; `password_file` gerado em runtime pelo container a partir de `MQTT_USERNAME` e `MQTT_PASSWORD`; Pi, simulador e n8n configurados com as mesmas credenciais via `.env`/UI.
+**Alternativas descartadas:** Senha hardcoded no código ou no `mosquitto.conf` — expõe segredo no repositório; arquivo de senha versionado — expõe hash reutilizável; TLS agora — desejável, mas exige certificados e distribuição operacional fora do escopo imediato.
+**Consequências:** Publicações anônimas são rejeitadas; `.env` passa a ser obrigatório para subir o broker; testes manuais com `mosquitto_pub/sub` precisam usar `-u/-P`; TLS continua como melhoria futura dependente de rede/certificados.
+
+---
+
 **Data:** 2026-06-08
 **Decisão:** Dashboard atualiza via polling AJAX (não SSE nem WebSocket)
 **Contexto:** Dashboard exibido em telão do NOC; precisa mostrar alerta de dispositivo offline. Avaliadas 4 abordagens: auto-refresh, AJAX polling, SSE, WebSocket.

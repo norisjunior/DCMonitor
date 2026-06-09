@@ -27,6 +27,8 @@ log = logging.getLogger(__name__)
 # ── Configuração (via .env ou variáveis de ambiente) ──────────────────────────
 BROKER_HOST = os.environ["MQTT_BROKER_HOST"]
 BROKER_PORT = int(os.getenv("MQTT_BROKER_PORT", "1883"))
+MQTT_USERNAME = os.getenv("MQTT_USERNAME")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 DEVICE_ID   = hex(uuid.getnode())[2:]
 TOPIC       = f"fdctmon/{DEVICE_ID}/attrs"
 
@@ -127,6 +129,8 @@ def main():
     client.on_connect    = on_connect
     client.on_disconnect = on_disconnect
     client.reconnect_delay_set(min_delay=1, max_delay=30)
+    if MQTT_USERNAME and MQTT_PASSWORD:
+        client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
 
     log.info("Conectando ao broker %s:%d ...", BROKER_HOST, BROKER_PORT)
     client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)

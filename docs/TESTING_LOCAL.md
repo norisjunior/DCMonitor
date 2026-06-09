@@ -94,6 +94,8 @@ DEVICE_OFFLINE_THRESHOLD_MINUTES=2
 # Referência (não usada internamente pelo Docker — só pelo script do Pi)
 MQTT_BROKER_HOST=localhost
 MQTT_BROKER_PORT=1883
+MQTT_USERNAME=fdctmon_iot
+MQTT_PASSWORD=senha_mqtt_local_123
 
 # Zabbix — pode deixar o valor real ou um placeholder para teste local
 ZABBIX_SERVER=10.32.8.57
@@ -114,6 +116,8 @@ Edite com:
 ```env
 MQTT_BROKER_HOST=localhost
 MQTT_BROKER_PORT=1883
+MQTT_USERNAME=fdctmon_iot
+MQTT_PASSWORD=senha_mqtt_local_123
 ```
 
 ---
@@ -159,6 +163,7 @@ Com os serviços no ar, publique uma mensagem como se fosse o Pi:
 
 ```bash
 mosquitto_pub -h localhost -p 1883 \
+  -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
   -t "fdctmon/b827eb00f6d0/attrs" \
   -m '{"device_id":"b827eb00f6d0","temp":25.3,"umid":60.0,"fumaca":0,"presenca_notificavel":0,"distancia":185.5}'
 ```
@@ -170,7 +175,7 @@ mosquitto_pub -h localhost -p 1883 \
 #### Broker — mensagens chegando ao Mosquitto
 ```bash
 # Em um terminal separado, antes de publicar:
-mosquitto_sub -h localhost -p 1883 -t "fdctmon/#" -v
+mosquitto_sub -h localhost -p 1883 -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" -t "fdctmon/#" -v
 ```
 Deve exibir a mensagem JSON assim que for publicada.
 
@@ -283,6 +288,8 @@ Conteúdo para homologação local:
 ```env
 MQTT_BROKER_HOST=localhost
 MQTT_BROKER_PORT=1883
+MQTT_USERNAME=fdctmon_iot
+MQTT_PASSWORD=senha_mqtt_local_123
 ```
 
 Opcionalmente, defina um nome para identificar o dispositivo simulado no banco:
@@ -297,7 +304,7 @@ Abra **3 terminais** lado a lado:
 
 **Terminal 1 — observar o broker em tempo real:**
 ```bash
-mosquitto_sub -h localhost -p 1883 -t "fdctmon/#" -v
+mosquitto_sub -h localhost -p 1883 -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" -t "fdctmon/#" -v
 ```
 
 **Terminal 2 — rodar o simulador:**

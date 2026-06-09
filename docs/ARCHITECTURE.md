@@ -27,7 +27,7 @@ Raspberry Pi (10.x.x.x)                Servidor (192.168.x.x)
 | Componente | Responsabilidade | Tecnologia | Localização |
 |---|---|---|---|
 | Sensor Publisher | Coleta sensores e publica MQTT JSON a cada 2 s | Python 3 + paho-mqtt | Raspberry Pi |
-| MQTT Broker | Roteamento de mensagens entre Pi e n8n | Mosquitto 2 (Docker) | Servidor |
+| MQTT Broker | Roteamento autenticado de mensagens entre Pi e n8n | Mosquitto 2 (Docker) | Servidor |
 | Flow Engine | MQTT→DB, Zabbix, retenção 90 d | n8n (Docker) | Servidor |
 | Banco de dados | Armazenamento de todas as medições | PostgreSQL 16 (Docker) | Servidor |
 | Dashboard Web | Exibição em tempo real para NOC | Python/Flask + HTML/JS (Docker) | Servidor |
@@ -36,6 +36,7 @@ Raspberry Pi (10.x.x.x)                Servidor (192.168.x.x)
 ## Contrato MQTT
 
 - **Tópico:** `fdctmon/{device_id}/attrs`
+- **Autenticação:** usuário/senha em `MQTT_USERNAME` e `MQTT_PASSWORD`; Mosquitto não aceita conexões anônimas
 - **Frequência:** a cada 2 s (temperatura usa cache entre leituras de 30 s)
 - **Payload:**
 

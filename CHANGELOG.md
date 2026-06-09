@@ -6,6 +6,19 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-06-09] — Autenticação MQTT no Mosquitto
+
+### Corrigido
+- `mosquitto/mosquitto.conf` — desabilitado acesso anônimo e configurado `password_file`
+- `docker-compose.yml` — Mosquitto gera credenciais em runtime a partir de `MQTT_USERNAME` e `MQTT_PASSWORD`; healthcheck passa a autenticar
+- `raspberry/sensor_publisher.py` e `raspberry/sensor_simulator.py` — publicadores usam `username_pw_set()` quando credenciais MQTT estão definidas
+
+### Alterado
+- `.env.example` e `raspberry/.env.example` — adicionadas variáveis `MQTT_USERNAME` e `MQTT_PASSWORD`
+- `README.md`, `n8n/README.md`, `docs/DEPLOY_PROD.md`, `docs/TESTING_LOCAL.md`, `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY.md` e `docs/decision-log.md` — documentação sincronizada com MQTT autenticado
+
+---
+
 ## [2026-06-08f] — Correção do zabbix_sender no container n8n
 
 ### Alterado

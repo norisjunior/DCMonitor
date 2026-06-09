@@ -19,6 +19,7 @@ Substituir a infraestrutura FIWARE por **n8n + PostgreSQL + Mosquitto**, mantend
 
 **Critérios de aceite:**
 - Presença e fumaça coletados a cada 2 s; temperatura/umidade a cada 30 s com cache local entre leituras
+- Publicação MQTT autenticada com `MQTT_USERNAME` e `MQTT_PASSWORD` vindos do `.env`
 - Payload JSON publicado em `fdctmon/{device_id}/attrs`:
   ```json
   {"temp": 25.3, "umid": 60.0, "fumaca": 0, "presenca_notificavel": 1, "distancia": 142.5, "device_id": "b827eb00f6d0"}
@@ -111,7 +112,7 @@ Substituir a infraestrutura FIWARE por **n8n + PostgreSQL + Mosquitto**, mantend
 
 | ID | Requisito | Critério verificável |
 |---|---|---|
-| RNF-001 | Segredos em `.env` | `.env` no `.gitignore`; `.env.example` documentado; `grep -r "password\|secret" *.py` retorna vazio |
+| RNF-001 | Segredos em `.env` | `.env` no `.gitignore`; `.env.example` documentado com placeholders; Mosquitto com `allow_anonymous false`; senha/hash MQTT não versionados |
 | RNF-002 | Latência Pi → banco | `timestamp` no banco ≤ 5 s após publicação MQTT |
 | RNF-003 | Startup único | `docker compose up` sobe os 4 serviços sem erro; `docker compose ps` mostra todos `Up` |
 | RNF-004 | Reconexão do Pi | Pi reconecta ao broker em até 30 s após queda simulada de rede |
@@ -124,7 +125,7 @@ Substituir a infraestrutura FIWARE por **n8n + PostgreSQL + Mosquitto**, mantend
 
 | Etapa | Como verificar independentemente |
 |---|---|
-| **Pi → Broker** | `mosquitto_sub -h <broker_ip> -t "fdctmon/#" -v` no terminal — mensagens JSON aparecem em tempo real |
+| **Pi → Broker** | `mosquitto_sub -h <broker_ip> -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" -t "fdctmon/#" -v` no terminal — mensagens JSON aparecem em tempo real |
 | **Broker → n8n** | UI do n8n → aba "Executions" do fluxo principal — cada execução mostra o payload recebido e o resultado do INSERT |
 | **n8n → PostgreSQL** | `psql -c "SELECT * FROM medicoes ORDER BY timestamp DESC LIMIT 5"` — registros mais recentes visíveis |
 | **PostgreSQL → Flask** | `curl http://<servidor>/api/status` — retorna JSON com último registro e flag `online` |

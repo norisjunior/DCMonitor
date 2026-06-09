@@ -12,7 +12,7 @@ Verifique: `docker compose ps` — todos os serviços `Up`.
 
 ## n8n (http://servidor:5678)
 
-1. **Credentials → New → MQTT** — nome `FdctMonSys MQTT`, host `mosquitto`, porta `1883`
+1. **Credentials → New → MQTT** — nome `FdctMonSys MQTT`, host `mosquitto`, porta `1883`, usuário/senha de `MQTT_USERNAME` e `MQTT_PASSWORD`
 2. **Credentials → New → Postgres** — nome `FdctMonSys PostgreSQL`, host `postgres`, porta `5432`, db/user/pass do `.env`
 3. **Workflows → Import** → `n8n/flow_principal.json` → associe as credenciais → **ative**
 4. **Workflows → Import** → `n8n/flow_retencao.json` → associe credencial Postgres → mantenha **inativo** (script é o mecanismo principal)
@@ -36,7 +36,7 @@ Adicione (ajuste o caminho):
 
 ```bash
 cd raspberry
-cp .env.example .env          # MQTT_BROKER_HOST = IP do servidor
+cp .env.example .env          # MQTT_BROKER_HOST = IP do servidor; MQTT_USERNAME/PASSWORD iguais ao servidor
 pip install -r requirements.txt
 python sensor_publisher.py
 ```
@@ -47,6 +47,11 @@ python sensor_publisher.py
 # Banco recebendo dados
 docker compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB \
   -c "SELECT * FROM medicoes ORDER BY timestamp DESC LIMIT 3;"
+
+# Broker autenticado
+mosquitto_pub -h servidor -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
+  -t "fdctmon/b827eb00f6d0/attrs" \
+  -m '{"device_id":"b827eb00f6d0","temp":25.3,"umid":60.0,"fumaca":0,"presenca_notificavel":0,"distancia":185.5}'
 
 # Dashboard
 curl http://servidor:5000/api/status

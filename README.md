@@ -39,7 +39,8 @@ python sensor_publisher.py
 
 ```bash
 # 1. Publicar medição de teste
-mosquitto_pub -h <servidor> -t "fdctmon/b827eb00f6d0/attrs" \
+mosquitto_pub -h <servidor> -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
+  -t "fdctmon/b827eb00f6d0/attrs" \
   -m '{"device_id":"b827eb00f6d0","temp":25.3,"umid":60.0,"fumaca":0,"presenca_notificavel":0,"distancia":185.5}'
 
 # 2. Confirmar no banco

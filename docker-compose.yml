@@ -5,11 +5,27 @@ services:
     restart: unless-stopped
     ports:
       - "1883:1883"
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+    command:
+      - sh
+      - -c
+      - |
+        if [ -z "$$MQTT_USERNAME" ] || [ -z "$$MQTT_PASSWORD" ]; then
+          echo "MQTT_USERNAME e MQTT_PASSWORD são obrigatórios" >&2
+          exit 1
+        fi
+        rm -f /tmp/mosquitto_passwd
+        mosquitto_passwd -b -c /tmp/mosquitto_passwd "$$MQTT_USERNAME" "$$MQTT_PASSWORD"
+        chown mosquitto:mosquitto /tmp/mosquitto_passwd
+        chmod 0640 /tmp/mosquitto_passwd
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto_data:/mosquitto/data
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/#' -C 1 -W 3 || exit 1"]
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -u \"$$MQTT_USERNAME\" -P \"$$MQTT_PASSWORD\" -t '$$SYS/#' -C 1 -W 3 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
