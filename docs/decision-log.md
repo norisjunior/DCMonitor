@@ -2,6 +2,16 @@
 
 > Entradas mais recentes primeiro.
 
+## 2026-07-13 — Fluxo executável da comunicação no `.ino`
+
+**Decisão:** Manter em `DC_Comunicacao.hpp` somente os clientes Wi-Fi/MQTT, a identidade e os tópicos; mover inicialização, reconexão e serialização JSON para `ESP32DC.ino`.
+
+**Justificativa:** Para o objetivo didático, uma única função não bloqueante de manutenção deixa o caminho Wi-Fi → MQTT → publicação visível sem alternar entre várias funções auxiliares.
+
+**Alternativas descartadas:** Três funções encadeadas de manutenção, por fragmentarem um fluxo pequeno; conexão bloqueante no `setup()`, por impedir o funcionamento resiliente sem rede.
+
+**Consequências:** O `.ino` fica maior, porém conta toda a execução; `DC_Comunicacao.hpp` atua como contexto de comunicação; Last Will, intervalos de reconexão e contrato MQTT permanecem.
+
 ## 2026-07-13 — Bind em todas as interfaces separado do nome público
 
 **Decisão:** Publicar as portas da stack explicitamente em `0.0.0.0`; clientes usam o IP atual `10.32.8.115` e, futuramente, um nome DNS.

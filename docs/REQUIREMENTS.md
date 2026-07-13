@@ -12,7 +12,7 @@ Substituir PostgreSQL/Flask por uma plataforma de séries temporais no Oracle Li
 
 Como operador do NOC, quero receber temperatura, umidade e índice de calor a cada 30 segundos para acompanhar o ambiente do datacenter.
 
-- DHT22 conectado ao GPIO 23 e alimentado segundo a especificação do módulo.
+- DHT22 conectado ao GPIO 25 e alimentado segundo a especificação do módulo.
 - Tópico `fdctmon/{device_id}/attrs`.
 - JSON com `schema_version`, `device_id`, `sensor`, `firmware_version`, `temp`, `umid` e `ic`.
 - Valores em °C e %UR, arredondados em uma casa decimal.

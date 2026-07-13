@@ -5,14 +5,15 @@
 | Componente | Modelo | Interface | Pino | Observação |
 |---|---|---|---|---|
 | MCU | ESP32 DevKit | — | — | Lógica 3,3 V |
-| Sensor | DHT22 | GPIO | 23 | Pull-up ~10 kΩ se sensor avulso |
+| Sensor | DHT22 | GPIO | 25 | Pull-up ~10 kΩ se sensor avulso |
 
 O Raspberry legado usa DHT11 e permanece separado do firmware ESP32.
 
 ## Convenções implementadas
 
 - Configuração sensível em `ESP32/include/config.hpp`, ignorada pelo Git.
-- `ESP32DC.ino` mantém a `struct` e orquestra a aplicação; `DC_Ambiente.hpp` e `DC_Comunicacao.hpp` encapsulam sensor e rede.
+- `ESP32DC.ino` mantém a `struct` e executa sensor, Wi-Fi, MQTT e JSON; `DC_Ambiente.hpp` encapsula o DHT22 e `DC_Comunicacao.hpp` mantém clientes, identidade e tópicos.
+- O endereço IP recebido pelo ESP32 é registrado uma vez a cada conexão Wi-Fi.
 - Publicação a cada 30 s usando aritmética segura com `millis()`.
 - Tentativas não bloqueantes: Wi-Fi 10 s, MQTT 5 s.
 - Last Will retido no tópico de status.

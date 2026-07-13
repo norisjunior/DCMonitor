@@ -6,19 +6,19 @@ Firmware didático para ESP32 DevKit com um DHT22. Lê temperatura e umidade, ca
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `src/ESP32DC.ino` | `struct LeituraAmbiente`, coleta e fluxo de `setup()`/`loop()` |
+| `src/ESP32DC.ino` | `struct`, coleta, Wi-Fi/MQTT, JSON e fluxo de `setup()`/`loop()` |
 | `src/DC_Ambiente.hpp` | Inicialização, leitura e índice de calor do DHT22 |
-| `src/DC_Comunicacao.hpp` | Wi-Fi, MQTT, identidade, Last Will e serialização JSON |
+| `src/DC_Comunicacao.hpp` | Clientes Wi-Fi/MQTT, identidade e composição dos tópicos |
 | `include/config.hpp` | Configuração local de rede, GPIO, intervalo e versão |
 
-O `.ino` conta o fluxo da aplicação; os detalhes de sensor e comunicação ficam em namespaces separados. Não há um módulo de dados porque a única `struct` pertence à aplicação.
+O `.ino` conta todo o fluxo de execução. O header de comunicação mantém apenas o estado compartilhado e a identidade; não inicializa conexões nem publica JSON. Não há um módulo de dados porque a única `struct` pertence à aplicação.
 
 ## Hardware
 
 | DHT22 | ESP32 |
 |---|---|
 | VCC | 3,3 V |
-| DATA | GPIO 23 |
+| DATA | GPIO 25 |
 | GND | GND |
 
 Se o DHT22 for o sensor avulso, use resistor pull-up de aproximadamente 10 kΩ entre VCC e DATA. Módulos prontos normalmente já possuem o resistor.
@@ -40,6 +40,12 @@ pio device monitor
 ```
 
 Monitor serial: 115200 baud.
+
+Ao conectar ao Wi-Fi, o monitor serial mostra o endereço recebido, por exemplo:
+
+```text
+[INFO] Wi-Fi conectado. IP: 10.32.8.120
+```
 
 ## MQTT
 

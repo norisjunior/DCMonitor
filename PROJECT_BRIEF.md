@@ -56,13 +56,14 @@
 | D-014 | ESP32 usa somente DHT22 nesta fase | Motor, LED, acelerômetro e outros sensores do protótipo de aula são removidos |
 | D-015 | ESP32 publica a cada 30 segundos | DHT22 respeita sua cadência e o volume esperado é de 2.880 mensagens/dia |
 | D-016 | Serviços escutam em `0.0.0.0`; clientes usam IP ou DNS | O IP atual é `10.32.8.115`; DNS futuro não exige trocar o bind dos containers |
+| D-017 | Execução da comunicação fica no `.ino` | `DC_Comunicacao.hpp` mantém somente estado dos clientes e configuração de identidade/tópicos |
 
 ## 6. Restrições
 
 - **Stack obrigatória:** Mosquitto, Node-RED, InfluxDB 2.x, n8n e Grafana em Docker Compose
 - **Servidor:** Oracle Linux 9 com Docker já instalado; IP atual `10.32.8.115`
 - **Hardware atual:** Raspberry Pi 3 B com DHT11/MQ-2/HC-SR04
-- **Hardware de substituição:** ESP32 DevKit com DHT22 no GPIO 23
+- **Hardware de substituição:** ESP32 DevKit com DHT22 no GPIO 25
 - **Rede:** dispositivos e servidor possuem conectividade IP; Zabbix em rede alcançável pelo servidor
 - **Custo:** componentes locais e open source
 

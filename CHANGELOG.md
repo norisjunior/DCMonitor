@@ -14,8 +14,9 @@ Mantido pela skill `documentation`.
 - Comando de geração do hash bcrypt do Node-RED corrigido para sobrescrever o entrypoint da imagem
 - Teste manual do `zabbix_sender` corrigido para ler as variáveis dentro do container n8n
 - Arquitetura de produção substituída por Mosquitto + Node-RED + InfluxDB + n8n + Grafana no Oracle Linux 9
-- Firmware ESP32 refeito para DHT22 no GPIO 23, índice de calor, publicação MQTT a cada 30 s, Last Will e reconexão não bloqueante
+- Firmware ESP32 confirmado para DHT22 no GPIO 25, índice de calor, publicação MQTT a cada 30 s, Last Will e reconexão não bloqueante
 - Firmware ESP32 reorganizado em `.ino` orquestrador + `DC_Ambiente.hpp` + `DC_Comunicacao.hpp`, mantendo a `struct` no código da aplicação
+- Execução de Wi-Fi/MQTT e serialização JSON movidas para o `.ino`; header de comunicação reduzido a clientes, identidade e tópicos; IP recebido passa a aparecer no monitor serial
 - Contrato MQTT atualizado com compatibilidade temporária para o Raspberry Pi legado
 - Node-RED passa a validar e persistir telemetria no InfluxDB
 - n8n passa a concentrar o envio ao Zabbix; Telegram permanece pendente de regras confirmadas

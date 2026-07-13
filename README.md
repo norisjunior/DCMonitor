@@ -75,7 +75,7 @@ pio run -t upload
 pio device monitor
 ```
 
-O ESP32 usa DHT22 no GPIO 23 e publica a cada 30 segundos. Veja [ESP32/README.md](ESP32/README.md).
+O ESP32 usa DHT22 no GPIO 25 e publica a cada 30 segundos. Veja [ESP32/README.md](ESP32/README.md).
 
 ## Teste rápido sem hardware
 

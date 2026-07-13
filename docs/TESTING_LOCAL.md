@@ -55,6 +55,7 @@ Confirme, nesta ordem:
 - Publique JSON inválido e confirme que nenhum ponto é gravado.
 - Pare o Zabbix ou use endereço inválido; InfluxDB deve continuar recebendo.
 - Desligue o ESP32 sem desconexão limpa; o tópico de status deve mudar para `offline`.
+- Reconecte o Wi-Fi e confirme no monitor serial a mensagem `Wi-Fi conectado. IP: ...` antes da reconexão MQTT.
 - Reinicie a stack e confirme que os dados permanecem.
 
 Para encerrar sem apagar volumes:

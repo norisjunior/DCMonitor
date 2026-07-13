@@ -34,13 +34,13 @@ escuta não é usado como hostname público.
 ## Organização do firmware ESP32
 
 ```text
-ESP32DC.ino          struct da leitura + setup/loop
+ESP32DC.ino          struct + setup/loop + Wi-Fi/MQTT + JSON
 DC_Ambiente.hpp      DHT22 + validação + índice de calor
-DC_Comunicacao.hpp   Wi-Fi + MQTT + JSON
+DC_Comunicacao.hpp   clientes Wi-Fi/MQTT + identidade/tópicos
 config.hpp           configuração local não versionada
 ```
 
-O `.ino` depende das interfaces dos dois namespaces, mas os headers não dependem do tipo definido pela aplicação: a publicação recebe os três valores escalares. Isso mantém a leitura didática e evita um módulo de dados para uma única `struct`.
+O `.ino` concentra o fluxo executável para leitura didática. O header de comunicação não inicializa, reconecta ou publica; fornece somente os objetos compartilhados e a identidade MQTT. O módulo do sensor permanece separado porque encapsula uma biblioteca e regras específicas do DHT22.
 
 ## Fronteiras de segurança
 
