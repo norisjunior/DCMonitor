@@ -32,8 +32,9 @@ Teste o executável dentro do container:
 
 ```bash
 docker compose exec n8n zabbix_sender --version
-docker compose exec n8n zabbix_sender \
-  -z "$ZABBIX_SERVER" -s "$ZABBIX_HOST_NAME" -k temperatura -o 25.0
+docker compose exec n8n sh -lc \
+  'zabbix_sender -z "$ZABBIX_SERVER" -p "$ZABBIX_PORT" \
+  -s "$ZABBIX_HOST_NAME" -k temperatura -o 25.0'
 ```
 
 Consulte **Executions** no n8n e **Latest Data** no Zabbix para validar o caminho completo.

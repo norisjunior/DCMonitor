@@ -9,6 +9,7 @@ from pathlib import Path
 
 DOCS_OBRIGATORIOS = [
     "README.md",
+    "INICIALIZACAO.md",
     "PROJECT_BRIEF.md",
     "CHANGELOG.md",
     "docs/ARCHITECTURE.md",

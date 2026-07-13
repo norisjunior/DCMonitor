@@ -11,6 +11,9 @@ ESP32 / Raspberry → Mosquitto ┬→ Node-RED → InfluxDB → Grafana
 
 Pré-requisito: Docker com o plugin Compose já instalado.
 
+Para a primeira subida no servidor `10.32.8.115`, siga o roteiro direto em
+[INICIALIZACAO.md](INICIALIZACAO.md).
+
 ```bash
 git clone <URL_DO_REPOSITORIO> dcmonitor
 cd dcmonitor
@@ -100,6 +103,7 @@ Deploy, backup, firewall e rollback: [docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md).
 ## Estrutura
 
 ```text
+INICIALIZACAO.md  primeira subida e teste da plataforma no Oracle Linux
 ESP32/       firmware PlatformIO do ESP32/DHT22
 raspberry/   publicador legado durante a migração
 mosquitto/   configuração MQTT
