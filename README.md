@@ -22,7 +22,7 @@ Substitua todos os valores `TROQUE_*`. Gere chaves simples com:
 
 ```bash
 openssl rand -hex 32
-docker run --rm -it nodered/node-red:4.1.11 node-red admin hash-pw
+docker run --rm -it --entrypoint node-red nodered/node-red:4.1.11 admin hash-pw
 ```
 
 Coloque o hash do Node-RED entre aspas simples no `.env`. Depois:
@@ -42,6 +42,15 @@ Interfaces:
 | n8n | `http://IP_DO_SERVIDOR:5678` |
 | InfluxDB | `http://IP_DO_SERVIDOR:8086` |
 | MQTT dos dispositivos | `IP_DO_SERVIDOR:1883` |
+
+Nesta instalação, substitua `IP_DO_SERVIDOR` por `10.32.8.115`. A variável
+`BIND_ADDRESS=0.0.0.0` faz os serviços aceitarem conexões por todas as interfaces,
+mas `0.0.0.0` não é um endereço para navegador, ESP32 ou registro DNS.
+
+Quando houver um nome bonito, mantenha o bind em `0.0.0.0` e crie no DNS um
+registro apontando o nome para `10.32.8.115`. URLs públicas e HTTPS de Grafana,
+n8n e Node-RED serão configurados quando o proxy reverso e o certificado forem
+definidos.
 
 O Node-RED, o datasource do Grafana e o dashboard já são provisionados. No n8n, faça somente a configuração descrita em [n8n/README.md](n8n/README.md).
 

@@ -10,6 +10,8 @@ Mantido pela skill `documentation`.
 
 ### Alterado
 
+- Portas da stack publicadas explicitamente em `0.0.0.0`, com acesso documentado pelo IP atual `10.32.8.115` e preparação para DNS futuro
+- Comando de geração do hash bcrypt do Node-RED corrigido para sobrescrever o entrypoint da imagem
 - Arquitetura de produção substituída por Mosquitto + Node-RED + InfluxDB + n8n + Grafana no Oracle Linux 9
 - Firmware ESP32 refeito para DHT22 no GPIO 23, índice de calor, publicação MQTT a cada 30 s, Last Will e reconexão não bloqueante
 - Firmware ESP32 reorganizado em `.ino` orquestrador + `DC_Ambiente.hpp` + `DC_Comunicacao.hpp`, mantendo a `struct` no código da aplicação

@@ -13,10 +13,14 @@ nano .env
 Substitua todos os placeholders. Gere valores aleatórios com `openssl rand -hex 32`. Para o hash do Node-RED:
 
 ```bash
-docker run --rm -it nodered/node-red:4.1.11 node-red admin hash-pw
+docker run --rm -it --entrypoint node-red nodered/node-red:4.1.11 admin hash-pw
 ```
 
 No `.env`, coloque o hash entre aspas simples para preservar `$`.
+
+Mantenha `BIND_ADDRESS=0.0.0.0`: esse valor faz o Docker aceitar conexões por
+todas as interfaces do servidor. Acesse as interfaces pelo IP atual
+`10.32.8.115`, nunca por `0.0.0.0`.
 
 ## 2. Subir
 
@@ -27,6 +31,17 @@ docker compose ps
 ```
 
 O primeiro startup inicializa organização, bucket e token do InfluxDB. Alterar as variáveis `DOCKER_INFLUXDB_INIT_*` depois que o volume existe não recria essas estruturas.
+
+Após subir, valide o bind publicado:
+
+```bash
+docker compose ps
+sudo ss -lntp | grep -E ':(1883|1880|3000|5678|8086)\\b'
+```
+
+Para usar DNS futuramente, crie um registro apontando o nome para
+`10.32.8.115` e preserve `BIND_ADDRESS=0.0.0.0`. O nome público e o HTTPS devem
+ser definidos nas aplicações somente junto com o proxy reverso e o certificado.
 
 ## 3. Firewall e SELinux
 

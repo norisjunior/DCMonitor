@@ -2,6 +2,16 @@
 
 > Entradas mais recentes primeiro.
 
+## 2026-07-13 — Bind em todas as interfaces separado do nome público
+
+**Decisão:** Publicar as portas da stack explicitamente em `0.0.0.0`; clientes usam o IP atual `10.32.8.115` e, futuramente, um nome DNS.
+
+**Justificativa:** O bind em todas as interfaces permite trocar ou adicionar DNS sem acoplar containers e firmware ao endereço público.
+
+**Alternativas descartadas:** Bind fixo em `10.32.8.115`, que acopla o Compose à interface atual; usar `0.0.0.0` como hostname público, que não representa um destino roteável para clientes.
+
+**Consequências:** O firewall deve restringir cada porta às redes autorizadas; HTTPS, URLs públicas e proxy reverso serão configurados em conjunto quando o nome DNS for definido.
+
 ## 2026-07-13 — `.ino` como orquestrador e dois módulos de firmware
 
 **Decisão:** Manter `LeituraAmbiente` no `.ino`; separar somente DHT22 em `DC_Ambiente.hpp` e conectividade/telemetria em `DC_Comunicacao.hpp`.

@@ -1,5 +1,6 @@
 module.exports = {
   flowFile: "flows.json",
+  uiHost: process.env.NODE_RED_LISTEN_ADDRESS || "0.0.0.0",
   credentialSecret: process.env.NODE_RED_CREDENTIAL_SECRET,
   editorTheme: {
     projects: { enabled: false },

@@ -99,7 +99,7 @@ Status do dispositivo: `fdctmon/{device_id}/status`, payload retido `online`/`of
 
 - Segredos somente em `.env` e `ESP32/include/config.hpp`, ambos ignorados.
 - Porta 1883 autenticada; porta 1884 restrita à rede Docker.
-- Interfaces administrativas protegidas e liberadas no firewall apenas para a rede de gestão.
+- Interfaces fazem bind em `0.0.0.0`; as administrativas são protegidas e liberadas no firewall apenas para a rede de gestão.
 - Logs não devem imprimir senhas, tokens ou cabeçalho de autorização do InfluxDB.
 - A perda de uma integração não deve impedir as demais, pois Node-RED e n8n são consumidores MQTT independentes.
 - Retenção de 90 dias; backup e restauração documentados em `docs/DEPLOY_PROD.md`.

@@ -14,6 +14,10 @@ Raspberry Pi ───┘                              ├── :1884 interno �
 
 Todos os serviços de servidor executam no mesmo Docker Compose no Oracle Linux 9. Node-RED e n8n recebem cópias independentes da mesma publicação MQTT; falha no Zabbix não bloqueia o InfluxDB.
 
+As portas publicadas fazem bind em `0.0.0.0`. Clientes acessam o servidor pelo
+IP atual `10.32.8.115` ou por um nome DNS que aponte para esse IP; o endereço de
+escuta não é usado como hostname público.
+
 ## Componentes e responsabilidades
 
 | Componente | Responsabilidade |
@@ -40,7 +44,7 @@ O `.ino` depende das interfaces dos dois namespaces, mas os headers não depende
 
 ## Fronteiras de segurança
 
-- `1883/tcp`: host → Mosquitto, autenticado, usado por ESP32/Raspberry.
+- `1883/tcp`: todas as interfaces do host → Mosquitto, autenticado, usado por ESP32/Raspberry.
 - `1884/tcp`: somente rede Docker, anônimo para eliminar credenciais em flows exportados; não publicado no host.
 - `1880`, `3000`, `5678`, `8086`: interfaces administrativas; firewall deve limitar à rede de gestão.
 - InfluxDB não recebe escrita direta dos dispositivos.

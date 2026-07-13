@@ -21,6 +21,7 @@
 6. Reinício da stack preserva dados e configurações.
 7. Zabbix indisponível não interrompe o fluxo Node-RED/InfluxDB.
 8. Dashboard diferencia séries por `device_id`.
+9. Compose renderizado publica `1883`, `1880`, `3000`, `5678` e `8086` com `host_ip: 0.0.0.0`; a porta `1884` permanece somente interna.
 
 ## Critério de entrega
 

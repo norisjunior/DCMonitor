@@ -12,6 +12,10 @@ Status atual: **aprovado com ressalvas**, condicionado à rotação da senha Wi-
 
 ## Superfície de rede
 
+O host publica as cinco portas em `0.0.0.0`, portanto elas escutam em todas as
+interfaces. Isso permite acesso pelo IP atual `10.32.8.115` e por DNS futuro,
+mas torna obrigatória a restrição de origem no `firewalld`.
+
 | Entrada | Controle |
 |---|---|
 | MQTT 1883 | usuário/senha obrigatórios; firewall limitado à rede IoT |
@@ -22,6 +26,9 @@ Status atual: **aprovado com ressalvas**, condicionado à rotação da senha Wi-
 | InfluxDB 8086 | token e firewall de gestão |
 
 TLS não está habilitado nesta fase. O controle compensatório é rede interna segmentada e firewall. Se qualquer tráfego cruzar rede não confiável, MQTT/HTTP devem receber TLS por proxy/certificados.
+
+`0.0.0.0` é somente endereço de escuta. Ele não deve ser usado em URL pública,
+registro DNS, configuração MQTT do ESP32 ou webhook do n8n.
 
 ## Validação
 

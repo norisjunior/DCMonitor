@@ -43,7 +43,7 @@
 | RNF-004 | Retenção | Bucket de telemetria mantém 90 dias (`2160h`) por padrão |
 | RNF-005 | Observabilidade | Cada etapa ESP32/Raspberry → MQTT → Node-RED/n8n → InfluxDB/Zabbix → Grafana pode ser verificada separadamente por comando ou UI |
 | RNF-006 | Simplicidade | Firmware didático em um arquivo principal, configuração separada e fluxo de um dado rastreável sem frameworks adicionais |
-| RNF-007 | Rede | Apenas portas necessárias são publicadas; porta MQTT interna `1884` não é exposta pelo host |
+| RNF-007 | Rede | Portas necessárias são publicadas explicitamente em `0.0.0.0`; firewall limita as origens; porta MQTT interna `1884` não é exposta pelo host |
 
 ## 5. Decisões confirmadas em 2026-07-13
 
@@ -55,11 +55,12 @@
 | D-013 | n8n encaminha medições ao Zabbix | Zabbix e futuras notificações Telegram ficam centralizados no motor de automação |
 | D-014 | ESP32 usa somente DHT22 nesta fase | Motor, LED, acelerômetro e outros sensores do protótipo de aula são removidos |
 | D-015 | ESP32 publica a cada 30 segundos | DHT22 respeita sua cadência e o volume esperado é de 2.880 mensagens/dia |
+| D-016 | Serviços escutam em `0.0.0.0`; clientes usam IP ou DNS | O IP atual é `10.32.8.115`; DNS futuro não exige trocar o bind dos containers |
 
 ## 6. Restrições
 
 - **Stack obrigatória:** Mosquitto, Node-RED, InfluxDB 2.x, n8n e Grafana em Docker Compose
-- **Servidor:** Oracle Linux 9 com Docker já instalado
+- **Servidor:** Oracle Linux 9 com Docker já instalado; IP atual `10.32.8.115`
 - **Hardware atual:** Raspberry Pi 3 B com DHT11/MQ-2/HC-SR04
 - **Hardware de substituição:** ESP32 DevKit com DHT22 no GPIO 23
 - **Rede:** dispositivos e servidor possuem conectividade IP; Zabbix em rede alcançável pelo servidor
