@@ -6,6 +6,40 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-07-13] — Migração para ESP32, InfluxDB e Grafana
+
+### Alterado
+
+- Arquitetura de produção substituída por Mosquitto + Node-RED + InfluxDB + n8n + Grafana no Oracle Linux 9
+- Firmware ESP32 refeito para DHT22 no GPIO 23, índice de calor, publicação MQTT a cada 30 s, Last Will e reconexão não bloqueante
+- Firmware ESP32 reorganizado em `.ino` orquestrador + `DC_Ambiente.hpp` + `DC_Comunicacao.hpp`, mantendo a `struct` no código da aplicação
+- Contrato MQTT atualizado com compatibilidade temporária para o Raspberry Pi legado
+- Node-RED passa a validar e persistir telemetria no InfluxDB
+- n8n passa a concentrar o envio ao Zabbix; Telegram permanece pendente de regras confirmadas
+- Grafana recebe datasource e dashboard provisionados
+- Documentação de requisitos, arquitetura, segurança, testes e deploy sincronizada
+
+### Adicionado
+
+- `ESP32/include/config.example.hpp` e `ESP32/README.md`
+- `ESP32/src/DC_Ambiente.hpp` e `ESP32/src/DC_Comunicacao.hpp`
+- `node-red/` com fluxo de ingestão versionado
+- `grafana/` com provisioning do datasource e dashboard
+- `n8n/flow_zabbix.json`
+- testes de regressão do Raspberry em `raspberry/tests/`
+
+### Removido
+
+- PostgreSQL, Flask, fluxos n8n de persistência/retenção e scripts de histórico PostgreSQL
+- regras de motor, LED, acelerômetro e referências FIAPIoT do protótipo ESP32 de aula
+- credenciais Wi-Fi hardcoded do firmware
+
+### Segurança
+
+- MQTT externo autenticado em `1883`; listener anônimo restrito à rede Docker em `1884`
+- interfaces e tokens documentados para uso por `.env`; Node-RED protegido por hash bcrypt
+- senha Wi-Fi exposta no protótipo marcada para rotação obrigatória
+
 ## [2026-06-09b] — Cadência de 10s e histerese de fumaça
 
 ### Alterado

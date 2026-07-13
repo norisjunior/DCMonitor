@@ -1,48 +1,30 @@
-# TESTING_STRATEGY.md
+# Estratégia de testes
 
-> Mantido por: `qa-testing`.
+## Camadas
 
-## Níveis de teste
+| Nível | Escopo | Verificação |
+|---|---|---|
+| Estático | JSON, docs, segredos e Compose | `scripts/run_project_checks.sh` |
+| Firmware | Compilação ESP32 | `pio run -d ESP32` |
+| Integração | MQTT → Node-RED → InfluxDB | payload controlado + consulta Influx |
+| Integração | MQTT → n8n → Zabbix | execução n8n + Latest Data |
+| Visual | InfluxDB → Grafana | dashboard com três métricas e histórico |
+| Resiliência | Wi-Fi/MQTT/DHT22 | desligar rede/sensor e observar logs/status |
 
-| Nível | Escopo | Ferramenta | Quando executar |
-|---|---|---|---|
-| Unitário | Rotas Flask + lógica de presença notificável | pytest | A cada commit |
-| Integração | Stack completo (MQTT → n8n → DB → Flask) | Docker Compose + mosquitto_pub | Antes de entregar |
-| Visual | Dashboard NOC no browser | Manual | Antes de entregar |
+## Casos mínimos
 
-## Metas de cobertura
+1. Payload ESP32 válido grava três fields.
+2. Payload Raspberry legado grava temperatura/umidade sem índice de calor.
+3. JSON inválido não grava e gera log legível.
+4. Temperatura/umidade fora da faixa não grava.
+5. Interrupção do broker publica `offline` pelo Last Will.
+6. Reinício da stack preserva dados e configurações.
+7. Zabbix indisponível não interrompe o fluxo Node-RED/InfluxDB.
+8. Dashboard diferencia séries por `device_id`.
 
-| Camada | Cobertura mínima |
-|---|---|
-| Rotas Flask (`/` e `/api/status`) | 100% dos casos feliz + principais erros |
-| Lógica de presença notificável (22h–6h) | 100% dos limites de horário |
-| Fluxo n8n | Verificação manual via aba Executions |
+## Critério de entrega
 
-## Convenções
-
-- Testes ficam em `web/tests/`.
-- Hardware (GPIO, MQTT, banco) é mockado nos testes unitários.
-- Nomes descrevem o comportamento: `test_api_status_offline_por_tempo`.
-
-## Comandos
-
-```bash
-# Testes unitários (sem Docker)
-source venv/bin/activate
-pytest web/tests/ -v
-
-# Stack completo (com Docker)
-docker compose up -d --build
-mosquitto_pub -h localhost -p 1883 \
-  -t "fdctmon/b827eb00f6d0/attrs" \
-  -m '{"device_id":"b827eb00f6d0","temp":25.3,"umid":60.0,"fumaca":0,"presenca_notificavel":0,"distancia":185.5}'
-curl http://localhost:5000/api/status
-```
-
-## Temporização esperada
-
-- Pi/simulador: amostra fumaça/presença a cada 2 s e publica MQTT a cada 10 s.
-- MQ-2: `fumaca` só muda após 3 leituras consecutivas no novo estado.
-- Dashboard: polling de `/api/status` a cada 10 s.
-
-Para o guia completo de teste local no WSL, veja [TESTING_LOCAL.md](TESTING_LOCAL.md).
+- Checks estáticos e Compose aprovados.
+- Firmware compilado ou limitação do ambiente declarada.
+- Teste ponta a ponta realizado no Oracle Linux com evidência dos cinco pontos de verificação.
+- Teste físico do DHT22; Wokwi sozinho não aprova hardware.

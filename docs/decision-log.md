@@ -1,100 +1,63 @@
-# decision-log.md
+# Log de decisões
 
-> Mantido por: `software-architect`. Uma entrada por decisão arquitetural ou técnica relevante.
-> Adicione novas entradas no topo (mais recente primeiro).
+> Entradas mais recentes primeiro.
 
----
+## 2026-07-13 — `.ino` como orquestrador e dois módulos de firmware
 
-## Template para novas entradas
+**Decisão:** Manter `LeituraAmbiente` no `.ino`; separar somente DHT22 em `DC_Ambiente.hpp` e conectividade/telemetria em `DC_Comunicacao.hpp`.
 
-**Data:** AAAA-MM-DD
-**Decisão:** `<título — ex.: "Usar PostgreSQL em vez de MongoDB">`
-**Contexto:** `<por que esta decisão foi necessária>`
-**Opção escolhida:** `<o que foi decidido>`
-**Alternativas descartadas:** `<opção A — motivo; opção B — motivo>`
-**Consequências:** `<o que muda, o que fica restrito, o que é habilitado>`
+**Justificativa:** O arquivo principal passa a contar o fluxo da aplicação, como no projeto VaccineSense, sem criar `DC_Dados.hpp` para uma única `struct`.
 
----
+**Alternativas descartadas:** Um header exclusivo de dados, por abstração desnecessária; um header por função, por fragmentar demais um firmware pequeno; manter toda a lógica no `.ino`, por reduzir a legibilidade didática.
 
-## Entradas
+**Consequências:** Os módulos de sensor e comunicação têm responsabilidades claras; a comunicação recebe valores escalares para não depender de um tipo declarado no `.ino`; contrato MQTT e robustez permanecem inalterados.
 
----
+## 2026-07-13 — n8n concentra Zabbix e futuras notificações
 
-**Data:** 2026-06-09
-**Decisão:** Publicar medições a cada 10 segundos com histerese de fumaça no dispositivo
-**Contexto:** A leitura digital do MQ-2 pode oscilar e gerar falso positivo se cada pico isolado for enviado diretamente ao banco, dashboard e Zabbix. O envio a cada 2 s também gera mais registros do que o necessário para o painel do NOC.
-**Opção escolhida:** O Raspberry Pi amostra fumaça/presença a cada 2 s, aplica histerese no campo `fumaca` (3 leituras consecutivas para entrar ou sair de alerta) e publica o payload MQTT a cada 10 s. O dashboard consulta `/api/status` a cada 10 s. O n8n permanece orientado a evento, executando a cada mensagem recebida.
-**Alternativas descartadas:** Média de fumaça em 30 s — poderia atrasar ou mascarar evento real; histerese no dashboard — deixaria banco e Zabbix com ruído; publicação a cada 2 s — maior chance de flutuação e volume desnecessário.
-**Consequências:** Falsos positivos isolados do MQ-2 deixam de acionar painel/Zabbix; alerta confirmado pode levar cerca de 6 a 10 s para aparecer na próxima publicação; volume esperado cai para ~8.640 registros/dia por dispositivo.
+**Decisão:** Node-RED valida e persiste telemetria; n8n envia ao Zabbix e receberá futuras regras Telegram.
 
----
+**Justificativa:** Mantém ingestão de séries temporais pequena e previsível, enquanto integrações externas e regras de decisão ficam no motor de automação já incluído na stack.
 
-**Data:** 2026-06-09
-**Decisão:** Exigir autenticação no Mosquitto sem versionar senha ou hash
-**Contexto:** A revisão final identificou que `allow_anonymous true` permitia publish não autorizado na rede interna, podendo gerar medições falsas no PostgreSQL, dashboard e Zabbix.
-**Opção escolhida:** Mosquitto com `allow_anonymous false`; `password_file` gerado em runtime pelo container a partir de `MQTT_USERNAME` e `MQTT_PASSWORD`; Pi, simulador e n8n configurados com as mesmas credenciais via `.env`/UI.
-**Alternativas descartadas:** Senha hardcoded no código ou no `mosquitto.conf` — expõe segredo no repositório; arquivo de senha versionado — expõe hash reutilizável; TLS agora — desejável, mas exige certificados e distribuição operacional fora do escopo imediato.
-**Consequências:** Publicações anônimas são rejeitadas; `.env` passa a ser obrigatório para subir o broker; testes manuais com `mosquitto_pub/sub` precisam usar `-u/-P`; TLS continua como melhoria futura dependente de rede/certificados.
+**Alternativas descartadas:** Node-RED→Zabbix, que exigiria nó adicional ou execução de processo no serviço de ingestão; ESP32→Zabbix, que acoplaria firmware a infraestrutura externa.
 
----
+**Consequências:** Node-RED e n8n assinam o mesmo tópico; falha Zabbix não afeta InfluxDB; n8n precisa conter `zabbix_sender`.
 
-**Data:** 2026-06-08
-**Decisão:** Dashboard atualiza via polling AJAX (não SSE nem WebSocket)
-**Contexto:** Dashboard exibido em telão do NOC; precisa mostrar alerta de dispositivo offline. Avaliadas 4 abordagens: auto-refresh, AJAX polling, SSE, WebSocket.
-**Opção escolhida:** Polling AJAX a cada 10 s via `fetch()` no endpoint `/api/status`
-**Alternativas descartadas:** SSE — mantém conexões abertas e exige async no Flask, complexidade desnecessária; WebSocket — bidirecional, overkill para leitura; auto-refresh — recarrega página inteira, UX ruim em telão
-**Consequências:** Latência de exibição de até 10 s após inserção no banco; Flask sem dependências assíncronas; código de frontend simples e testável
+## 2026-07-13 — InfluxDB e Grafana substituem PostgreSQL e Flask
 
----
+**Decisão:** InfluxDB é o banco de telemetria e Grafana é a interface de visualização.
 
-**Data:** 2026-06-08
-**Decisão:** Retenção de dados: 90 dias via fluxo n8n agendado
-**Contexto:** Pi envia ~8.640 registros/dia; sem retenção o banco cresce indefinidamente. Avaliadas 3 abordagens: n8n scheduled, pg_cron, cron Linux.
-**Opção escolhida:** Fluxo n8n com trigger Schedule executando `DELETE FROM medicoes WHERE timestamp < NOW() - INTERVAL '90 days'` diariamente
-**Alternativas descartadas:** pg_cron — exige ativar extensão na imagem Docker do Postgres; cron Linux — peça fora do Docker, manutenção separada
-**Consequências:** ~3,9 M linhas máximo no banco; retenção visível e editável via UI do n8n; sem nova dependência de infra
+**Justificativa:** A carga é uma série temporal e o Grafana fornece dashboard e histórico sem manter aplicação web própria.
 
----
+**Alternativas descartadas:** Manter PostgreSQL/Flask em paralelo, que duplicaria persistência e dashboard sem requisito; manter FIWARE, explicitamente fora do escopo.
 
-**Data:** 2026-06-08
-**Decisão:** Threshold de dispositivo offline = 2 minutos
-**Contexto:** Pi publica a cada 10 s; dashboard precisa alertar quando dispositivo para de enviar. Definir threshold muito baixo gera falsos alarmes em reinicializações.
-**Opção escolhida:** 2 minutos sem novo registro → status `offline` retornado pelo endpoint `/api/status`
-**Alternativas descartadas:** 30 s — muito sensível a reinicializações normais; 5 min — lento para NOC detectar falha real; configurável — aumenta complexidade sem benefício imediato
-**Consequências:** Falhas reais detectadas em até 2 min + 10 s (threshold + polling); reinicializações do Pi não disparam alerta falso
+**Consequências:** Serviços e fluxos PostgreSQL/Flask deixam o deploy; retenção passa a ser política do bucket InfluxDB.
 
----
+## 2026-07-13 — Porta MQTT interna isolada
 
-**Data:** 2026-06-08
-**Decisão:** Campo "presença" no dashboard = `presenca_notificavel` + distância bruta
-**Contexto:** Código legado calcula 3 valores distintos: distância (cm), presença booleana (< 200 cm) e presença notificável (presença + horário 22h–6h). Dashboard exibido no NOC.
-**Opção escolhida:** `presenca_notificavel` (lógica de horário mantida) como indicador de alarme; distância bruta exibida como métrica complementar
-**Alternativas descartadas:** Presença booleana simples — perde contexto de horário crítico; distância bruta isolada — difícil interpretar sem threshold
-**Consequências:** Lógica de 22h–6h permanece no script do Pi; Zabbix recebe `presenca_notificavel`; banco armazena ambos os campos
+**Decisão:** Dispositivos usam `1883` autenticada; consumidores Docker usam `1884` anônima e não publicada no host.
 
----
+**Justificativa:** Permite provisionar flows sem armazenar credenciais MQTT exportadas, mantendo o acesso anônimo confinado à rede Docker.
 
-**Data:** 2026-06-08
-**Decisão:** Tópico MQTT único com payload JSON unificado
-**Contexto:** Tópicos FIWARE legados (`/ul/19662024/b827eb00f6d0/attrs`) serão descartados com a remoção do FIWARE. Pi amostra presença/fumaça a cada 2 s, publica a cada 10 s e temperatura/umidade a cada 30 s.
-**Opção escolhida:** Tópico único `fdctmon/{device_id}/attrs` com payload JSON `{"temp":X,"umid":X,"fumaca":X,"presenca_notificavel":X,"distancia":X}`; temperatura usa cache local no Pi entre leituras de 30 s; fumaça é enviada já confirmada por histerese
-**Alternativas descartadas:** Tópico por sensor — n8n precisaria correlacionar 4 mensagens antes de inserir, complexidade desnecessária; tópicos FIWARE — acoplados ao IoT Agent que será removido
-**Consequências:** n8n recebe 1 mensagem e faz 1 INSERT; cache de temperatura no Pi pode ter valor desatualizado por até 30 s após reboot; JSON levemente maior que payload UL, irrelevante para rede local
+**Alternativas descartadas:** Credenciais embutidas em flows; configuração manual obrigatória do Node-RED; broker externo anônimo.
 
----
+**Consequências:** Comprometimento de um container na rede permite acesso ao broker interno; firewall e mínimo privilégio continuam necessários.
 
-**Data:** 2026-06-08
-**Decisão:** Integração com Zabbix migrada do Pi para o servidor (n8n)
-**Contexto:** Hoje `zabbix_sender` é chamado via `os.system()` diretamente no script Python do Pi. No novo projeto o Pi apenas publica MQTT.
-**Opção escolhida:** n8n chama `zabbix_sender` no container do servidor a cada mensagem MQTT recebida, enviando os 4 valores ao host `10.32.8.57`
-**Alternativas descartadas:** Manter no Pi — contradiz RF-004 (Pi não deve ter lógica além de coletar e publicar); redundância Pi + servidor — desnecessária
-**Consequências:** Pi fica sem dependência do Zabbix; `zabbix_sender` precisa estar disponível no container/servidor; se n8n estiver fora do ar, Zabbix também perde as medições
+## 2026-07-13 — Contrato MQTT compatível durante a migração
 
----
+**Decisão:** O contrato mínimo é `device_id`, `temp` e `umid`; ESP32 v1 adiciona `ic`, `sensor`, `schema_version` e `firmware_version`.
 
-**Data:** 2026-06-08
-**Decisão:** Substituição completa do FIWARE por n8n + PostgreSQL + Mosquitto
-**Contexto:** Stack FIWARE (Orion, IoT Agent, MongoDB, MySQL) estava em `OLD_PROJECT/FdctMonSys-Cloud`. Complexidade alta para o problema em questão (1 dispositivo, 4 sensores, 1 dashboard).
-**Opção escolhida:** n8n como motor de fluxo, PostgreSQL como banco único, Mosquitto como broker MQTT, todos em Docker Compose no servidor
-**Alternativas descartadas:** Manter FIWARE — proibido pelo escopo; Node-RED — fora da stack declarada; scripts Python puros no servidor — sem UI de fluxo para manutenção
-**Consequências:** Elimina MongoDB e MySQL; reduz serviços de ~6 para 4 (Mosquitto, n8n, PostgreSQL, Flask); curva de aprendizado do n8n necessária
+**Justificativa:** Raspberry continua ativo sem exigir uma alteração arriscada no dispositivo legado.
+
+**Alternativas descartadas:** Exigir imediatamente o payload ESP32 no Raspberry; tópicos diferentes por tecnologia.
+
+**Consequências:** `ic` é nullable durante a transição e campos extras do Raspberry são ignorados.
+
+## 2026-07-13 — Firmware ESP32 didático e não bloqueante
+
+**Decisão:** Um `.ino` principal como orquestrador, dois headers por responsabilidade, configuração local, `millis()` para temporização e PubSubClient para MQTT.
+
+**Justificativa:** Mantém o exemplo legível para aula sem sacrificar reconexão, Last Will e separação de segredos.
+
+**Alternativas descartadas:** FreeRTOS/AsyncMqttClient nesta fase, por complexidade sem ganho necessário; código de motor/acelerômetro do protótipo, fora do domínio.
+
+**Consequências:** Telemetria usa QoS 0 e se repete a cada 30 s; não há fila offline local.

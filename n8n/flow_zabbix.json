@@ -1,0 +1,51 @@
+{
+  "name": "DCMonitor - MQTT para Zabbix",
+  "nodes": [
+    {
+      "parameters": { "topics": "fdctmon/+/attrs", "options": {} },
+      "id": "mqtt-trigger",
+      "name": "Telemetria MQTT",
+      "type": "n8n-nodes-base.mqttTrigger",
+      "typeVersion": 1,
+      "position": [-420, 0],
+      "credentials": {
+        "mqtt": { "id": "dcmonitor-mqtt-internal", "name": "DCMonitor MQTT interno" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.message;\nlet payload;\ntry {\n  payload = typeof raw === 'string' ? JSON.parse(raw) : raw;\n} catch (error) {\n  throw new Error('Payload MQTT não é JSON válido');\n}\n\nconst deviceId = String(payload.device_id || '').trim();\nconst temp = Number(payload.temp);\nconst umid = Number(payload.umid);\nconst ic = payload.ic === undefined || payload.ic === null ? null : Number(payload.ic);\n\nif (!/^[a-zA-Z0-9_-]{1,64}$/.test(deviceId)) throw new Error('device_id inválido');\nif (!Number.isFinite(temp) || temp < -40 || temp > 80) throw new Error('temperatura inválida');\nif (!Number.isFinite(umid) || umid < 0 || umid > 100) throw new Error('umidade inválida');\nif (ic !== null && !Number.isFinite(ic)) throw new Error('índice de calor inválido');\n\nreturn [{ json: { device_id: deviceId, temp, umid, ic } }];"
+      },
+      "id": "validate-payload",
+      "name": "Validar telemetria",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-160, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { execFileSync } = require('child_process');\n\nconst envValue = (name) => {\n  try {\n    return execFileSync('printenv', [name], { timeout: 2000 }).toString().trim();\n  } catch {\n    return '';\n  }\n};\n\nconst server = envValue('ZABBIX_SERVER');\nconst port = envValue('ZABBIX_PORT') || '10051';\nconst host = envValue('ZABBIX_HOST_NAME');\nif (!server || !host) throw new Error('ZABBIX_SERVER/ZABBIX_HOST_NAME não configurados');\n\nconst data = $input.first().json;\nconst items = [\n  ['temperatura', data.temp],\n  ['umidade', data.umid],\n  ['indice_calor', data.ic],\n];\n\nconst errors = [];\nfor (const [key, value] of items) {\n  if (value === null || value === undefined) continue;\n  try {\n    execFileSync('/usr/bin/zabbix_sender', [\n      '-z', server, '-p', port, '-s', host, '-k', key, '-o', String(value),\n    ], { timeout: 5000 });\n  } catch (error) {\n    errors.push(`${key}: ${error.message}`);\n  }\n}\n\nreturn [{ json: { ...data, zabbix_ok: errors.length === 0, zabbix_errors: errors } }];"
+      },
+      "id": "send-zabbix",
+      "name": "Enviar ao Zabbix",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [100, 0],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telemetria MQTT": {
+      "main": [[{ "node": "Validar telemetria", "type": "main", "index": 0 }]]
+    },
+    "Validar telemetria": {
+      "main": [[{ "node": "Enviar ao Zabbix", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "f153ee69-3c48-4dde-9848-dc0000000001",
+  "meta": { "templateCredsSetupCompleted": false },
+  "tags": []
+}

@@ -1,115 +1,39 @@
-# n8n — Configuração e importação dos fluxos
+# n8n — Zabbix e automações
 
-## 1. Subir o ambiente
+O n8n recebe a mesma telemetria MQTT que o Node-RED, mas não grava no InfluxDB. Sua responsabilidade atual é encaminhar valores ao Zabbix; regras Telegram serão adicionadas quando limiares e política anti-repetição forem definidos.
+
+## Configuração inicial
+
+1. Acesse `http://IP_DO_SERVIDOR:5678` e crie o usuário proprietário.
+2. Em **Credentials**, crie uma credencial MQTT chamada `DCMonitor MQTT interno`:
+
+   - Host: `mosquitto`
+   - Port: `1884`
+   - Protocol: `mqtt`
+   - Usuário e senha: vazios
+
+3. Importe `n8n/flow_zabbix.json`.
+4. Selecione a credencial no nó `Telemetria MQTT`.
+5. Ative o workflow.
+
+## Pré-requisito Zabbix
+
+No host cujo nome está em `ZABBIX_HOST_NAME`, crie itens do tipo **Zabbix trapper**:
+
+| Chave | Tipo sugerido |
+|---|---|
+| `temperatura` | Numeric (float) |
+| `umidade` | Numeric (float) |
+| `indice_calor` | Numeric (float) |
+
+O Raspberry legado não envia `indice_calor`; nesse caso, os outros dois itens continuam sendo enviados.
+
+Teste o executável dentro do container:
 
 ```bash
-cp .env.example .env   # preencha as variáveis
-docker compose up -d
+docker compose exec n8n zabbix_sender --version
+docker compose exec n8n zabbix_sender \
+  -z "$ZABBIX_SERVER" -s "$ZABBIX_HOST_NAME" -k temperatura -o 25.0
 ```
 
-Acesse o n8n em http://<ip-servidor>:5678
-
-## 2. Criar as credenciais (uma única vez)
-
-### Credencial MQTT — "FdctMonSys MQTT"
-
-Menu → Credentials → New → MQTT
-| Campo    | Valor                       |
-|----------|-----------------------------|
-| Host     | mosquitto  *(nome do serviço Docker)* |
-| Port     | 1883                        |
-| Protocol | mqtt                        |
-| Username | (valor de MQTT_USERNAME)    |
-| Password | (valor de MQTT_PASSWORD)    |
-
-### Credencial PostgreSQL — "FdctMonSys PostgreSQL"
-
-Menu → Credentials → New → Postgres
-| Campo    | Valor                   |
-|----------|-------------------------|
-| Host     | postgres                |
-| Port     | 5432                    |
-| Database | (valor de POSTGRES_DB)  |
-| User     | (valor de POSTGRES_USER)|
-| Password | (valor de POSTGRES_PASSWORD) |
-
-## 3. Fluxos disponíveis
-
-| Arquivo | Usar quando | Zabbix necessário? |
-|---|---|---|
-| `flow_principal.json` | Produção — envia ao banco **e** ao Zabbix | Sim (`zabbix_sender` no container) |
-| `flow_principal_sem_zabbix.json` | Homologação / teste local — somente banco | Não |
-| `flow_retencao.json` | Alternativa manual de arquivo via UI do n8n | Não |
-
-> **Arquivo trimestral automatizado:** use `scripts/export_historico.sh` via cron no servidor.
-> Ele faz a operação completa (archive + ZIP + limpeza) sem depender do n8n.
-> O `flow_retencao.json` pode ficar inativo; use-o apenas para acionar o arquivo manualmente pela UI.
-
-## 4. Importar os fluxos
-
-Menu → Workflows → Import from file
-
-**Produção:**
-1. Importe `flow_principal.json`
-2. Importe `flow_retencao.json`
-
-**Homologação / teste local (sem Zabbix):**
-1. Importe `flow_principal_sem_zabbix.json`
-2. Importe `flow_retencao.json`
-
-Após importar cada fluxo, abra-o, associe as credenciais nos nós indicados
-e **ative o fluxo** com o toggle no canto superior direito.
-
-## 5. Verificar funcionamento
-
-### Fluxo principal
-```bash
-# Publicar mensagem de teste no broker
-mosquitto_pub -h <ip-servidor> -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
-  -t "fdctmon/b827eb00f6d0/attrs" \
-  -m '{"device_id":"b827eb00f6d0","temp":25.3,"umid":60.0,"fumaca":0,"presenca_notificavel":0,"distancia":185.5}'
-
-# Confirmar registro no banco
-docker compose exec postgres psql -U fdctmon -d fdctmon \
-  -c "SELECT * FROM medicoes ORDER BY timestamp DESC LIMIT 3;"
-```
-
-### Fluxo de retenção
-Na UI do n8n: abra o fluxo → clique em "Test workflow" → confirme que não há erro.
-
-## 6. Nós e responsabilidades
-
-### flow_principal.json (produção)
-| Nó | Responsabilidade |
-|----|-----------------|
-| MQTT Trigger | Recebe JSON do tópico `fdctmon/#` |
-| Parse JSON | Valida e sanitiza campos; falha explícita se payload inválido |
-| INSERT medicoes | Grava no banco com timestamp automático do servidor |
-| Envia ao Zabbix | Chama `zabbix_sender` para os 4 itens; `continueOnFail=true` |
-
-O fluxo principal não possui timer próprio: cada execução acontece quando uma
-mensagem MQTT chega. A cadência esperada do Pi é uma publicação a cada 10 s.
-
-### flow_principal_sem_zabbix.json (homologação)
-| Nó | Responsabilidade |
-|----|-----------------|
-| MQTT Trigger | Recebe JSON do tópico `fdctmon/#` |
-| Parse JSON | Valida e sanitiza campos; idêntico ao fluxo de produção |
-| INSERT medicoes | Grava no banco com timestamp automático do servidor |
-
-### flow_retencao.json
-Estratégia: arquivo trimestral — roda 4 vezes por ano (1/jan, 1/abr, 1/jul, 1/out).
-Toda a operação é SQL puro: nenhum dado trafega pelo n8n, sem risco de estouro de memória.
-
-| Nó | Responsabilidade |
-|----|-----------------|
-| Agenda Trimestral | Cron `0 2 1 */3 *` — 02:00 no dia 1 de cada trimestre |
-| Arquivar no banco | `INSERT INTO medicoes_historico SELECT … FROM medicoes` — cópia completa no banco |
-| Deletar tudo | `DELETE FROM medicoes` — só executa se o arquivo teve sucesso |
-
-**Exportar CSV quando precisar** (fora do n8n):
-```bash
-docker compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB \
-  -c "\COPY medicoes_historico TO '/tmp/historico.csv' CSV HEADER"
-docker compose cp postgres:/tmp/historico.csv ./historico.csv
-```
+Consulte **Executions** no n8n e **Latest Data** no Zabbix para validar o caminho completo.

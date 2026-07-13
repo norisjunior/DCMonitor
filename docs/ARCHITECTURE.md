@@ -1,117 +1,77 @@
-# ARCHITECTURE.md
+# Arquitetura — DCMonitor
 
-> Mantido por: `software-architect`. Atualize a cada decisão estrutural.
-> Última atualização: 2026-06-08
+> Última atualização: 2026-07-13.
 
-## Visão geral do fluxo de dados
+## Fluxo de dados
 
 ```text
-Raspberry Pi (10.x.x.x)                Servidor (192.168.x.x)
-─────────────────────────               ──────────────────────────────────────
- sensor_publisher.py                     docker-compose
-  ├─ DHT11 (temp/umid)                    ├─ mosquitto:1883  (MQTT Broker)
-  ├─ MQ-2  (fumaça)       MQTT JSON       ├─ n8n:5678        (Flow Engine)
-  └─ HC-SR04 (distância) ──────────────►  │   ├─ flow_principal
-                                          │   │   ├─ INSERT → postgres
-                                          │   │   └─ zabbix_sender → Zabbix
-                                          │   └─ flow_retencao (DELETE 90d)
-                                          ├─ postgres:5432   (PostgreSQL)
-                                          └─ web:5000        (Flask Dashboard)
-                                               └─ GET /api/status ◄── Browser NOC
-
-                                          Zabbix Server (10.32.8.57)
+ESP32 + DHT22 ──┐
+                ├── MQTT autenticado :1883 ──► Mosquitto
+Raspberry Pi ───┘                              ├── :1884 interno ─► Node-RED ─► InfluxDB ─► Grafana
+                                                └── :1884 interno ─► n8n ─► Zabbix
+                                                                         └── Telegram (fase futura)
 ```
 
-## Componentes
+Todos os serviços de servidor executam no mesmo Docker Compose no Oracle Linux 9. Node-RED e n8n recebem cópias independentes da mesma publicação MQTT; falha no Zabbix não bloqueia o InfluxDB.
 
-| Componente | Responsabilidade | Tecnologia | Localização |
-|---|---|---|---|
-| Sensor Publisher | Amostra sensores e publica MQTT JSON a cada 10 s | Python 3 + paho-mqtt | Raspberry Pi |
-| MQTT Broker | Roteamento autenticado de mensagens entre Pi e n8n | Mosquitto 2 (Docker) | Servidor |
-| Flow Engine | MQTT→DB, Zabbix, retenção 90 d | n8n (Docker) | Servidor |
-| Banco de dados | Armazenamento de todas as medições | PostgreSQL 16 (Docker) | Servidor |
-| Dashboard Web | Exibição em tempo real para NOC | Python/Flask + HTML/JS (Docker) | Servidor |
-| Monitoramento | Alertas e histórico de itens Zabbix | Zabbix (externo) | 10.32.8.57 |
+## Componentes e responsabilidades
 
-## Contrato MQTT
+| Componente | Responsabilidade |
+|---|---|
+| ESP32 | Ler DHT22, calcular índice de calor, publicar a cada 30 s e anunciar status MQTT |
+| Raspberry | Manter coleta legada durante a migração |
+| Mosquitto | Autenticar dispositivos e distribuir mensagens aos consumidores internos |
+| Node-RED | Validar o contrato mínimo e escrever line protocol na API do InfluxDB |
+| InfluxDB | Armazenar séries temporais por 90 dias |
+| Grafana | Consultar InfluxDB e exibir dashboard do NOC |
+| n8n | Validar telemetria e coordenar integrações Zabbix/Telegram |
+| Zabbix | Receber valores em itens trapper e aplicar alertas operacionais |
 
-- **Tópico:** `fdctmon/{device_id}/attrs`
-- **Autenticação:** usuário/senha em `MQTT_USERNAME` e `MQTT_PASSWORD`; Mosquitto não aceita conexões anônimas
-- **Frequência:** amostragem local de fumaça/presença a cada 2 s; publicação MQTT a cada 10 s; temperatura usa cache entre leituras de 30 s
-- **Histerese de fumaça:** `fumaca` só muda após 3 leituras consecutivas do MQ-2 no novo estado
-- **Payload:**
+## Organização do firmware ESP32
 
-```json
-{
-  "device_id":            "b827eb00f6d0",
-  "temp":                 25.3,
-  "umid":                 60.0,
-  "fumaca":               0,
-  "presenca_notificavel": 1,
-  "distancia":            142.5
-}
+```text
+ESP32DC.ino          struct da leitura + setup/loop
+DC_Ambiente.hpp      DHT22 + validação + índice de calor
+DC_Comunicacao.hpp   Wi-Fi + MQTT + JSON
+config.hpp           configuração local não versionada
 ```
 
-| Campo | Tipo | Nullable | Descrição |
-|---|---|---|---|
-| `device_id` | string | não | MAC address hex do Pi |
-| `temp` | number | sim | Temperatura em °C (null se cache vazio após reboot) |
-| `umid` | number | sim | Umidade relativa em % |
-| `fumaca` | 0 ou 1 | não | 1 = fumaça detectada pelo MQ-2 |
-| `presenca_notificavel` | 0 ou 1 | não | 1 = presença (dist < 200 cm) E horário 22h–6h |
-| `distancia` | number | não | Distância em cm medida pelo HC-SR04 |
+O `.ino` depende das interfaces dos dois namespaces, mas os headers não dependem do tipo definido pela aplicação: a publicação recebe os três valores escalares. Isso mantém a leitura didática e evita um módulo de dados para uma única `struct`.
 
-## Contrato Flask API
+## Fronteiras de segurança
 
-### `GET /`
-- Retorna: HTML do dashboard NOC
+- `1883/tcp`: host → Mosquitto, autenticado, usado por ESP32/Raspberry.
+- `1884/tcp`: somente rede Docker, anônimo para eliminar credenciais em flows exportados; não publicado no host.
+- `1880`, `3000`, `5678`, `8086`: interfaces administrativas; firewall deve limitar à rede de gestão.
+- InfluxDB não recebe escrita direta dos dispositivos.
+- Node-RED envia o token InfluxDB somente em chamada interna HTTP.
+- n8n usa `execFileSync` com lista de argumentos para evitar command injection no `zabbix_sender`.
 
-### `GET /api/status`
-- Retorna: JSON com último registro + status de conectividade
-- Resposta OK (200):
-```json
-{
-  "online": true,
-  "registro": {
-    "timestamp":            "2026-06-08T14:30:00+00:00",
-    "device_id":            "b827eb00f6d0",
-    "temperatura":          25.3,
-    "umidade":              60.0,
-    "fumaca":               0,
-    "presenca_notificavel": 0,
-    "distancia":            185.5
-  }
-}
-```
-- `online: false` quando `NOW() - timestamp > 2 min` ou banco vazio
-- Resposta erro (503): `{"error": "Falha ao consultar banco de dados"}`
+## Modelo InfluxDB
 
-## Schema PostgreSQL
-
-```sql
-CREATE TABLE medicoes (
-    id                   BIGSERIAL PRIMARY KEY,
-    timestamp            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    device_id            TEXT        NOT NULL,
-    temperatura          NUMERIC(5,2),
-    umidade              NUMERIC(5,2),
-    fumaca               SMALLINT    NOT NULL,
-    presenca_notificavel SMALLINT    NOT NULL,
-    distancia            NUMERIC(7,2)
-);
+```text
+measurement: ambiente
+tags:        device_id, sensor
+fields:      temperatura (float), umidade (float), indice_calor (float opcional)
+timestamp:   atribuído pelo servidor
 ```
 
-Índices: `idx_medicoes_timestamp` (DESC), `idx_medicoes_device_id`
+`device_id` e `sensor` são tags porque filtram séries. Valores de medição são fields para evitar cardinalidade desnecessária.
 
-## Decisões arquiteturais
+## Contratos
 
-Ver [decision-log.md](decision-log.md) para justificativas detalhadas de cada escolha.
+O contrato MQTT completo está em `docs/REQUIREMENTS.md`. O mínimo aceito durante a migração é `device_id`, `temp` e `umid`; o ESP32 versão 1 também envia `ic`, `sensor`, `schema_version` e `firmware_version`.
 
-## Riscos arquiteturais
+## Evolução prevista
 
-| Risco | Impacto | Mitigação |
-|---|---|---|
-| `zabbix_sender` ausente no container n8n | Alto | Dockerfile customizado instala `zabbix-utils` via apk |
-| n8n perde conexão MQTT silenciosamente | Alto | Monitorar aba Executions no n8n; reconexão automática configurada |
-| Rede Pi → servidor instável | Alto | Threshold 2 min + banner offline no dashboard |
-| Cache de temperatura nulo após reboot do Pi | Baixo | Flask trata null exibindo "—"; banco aceita NULL |
+1. Operar Raspberry e ESP32 lado a lado.
+2. Validar estabilidade do ESP32/DHT22 e equivalência no Grafana/Zabbix.
+3. Adicionar sensores ao ESP32 somente após novos requisitos e versão de payload.
+4. Desativar o Raspberry quando a substituição for aceita.
+
+## Riscos
+
+- A porta MQTT interna anônima depende do isolamento da rede Docker.
+- Fluxo Zabbix depende do `zabbix_sender` e da permissão de módulos builtin no Code node do n8n.
+- Dashboard provisionado assume o bucket `fdctmon`; alterar o nome exige atualizar suas consultas.
+- InfluxDB OSS em nó único não oferece alta disponibilidade.

@@ -1,0 +1,21 @@
+apiVersion: 1
+
+deleteDatasources:
+  - name: DCMonitor InfluxDB
+    orgId: 1
+
+datasources:
+  - name: DCMonitor InfluxDB
+    uid: dcmonitor-influxdb
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    isDefault: true
+    editable: false
+    jsonData:
+      version: Flux
+      organization: ${INFLUXDB_ORG}
+      defaultBucket: ${INFLUXDB_BUCKET}
+      tlsSkipVerify: false
+    secureJsonData:
+      token: ${INFLUXDB_TOKEN}

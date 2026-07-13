@@ -1,75 +1,102 @@
-# FdctMonSys
+# DCMonitor
 
-Monitoramento ambiental de datacenter — Raspberry Pi + n8n + PostgreSQL + Flask.
+Monitoramento ambiental de datacenter com ESP32/Raspberry, MQTT, InfluxDB, Node-RED, n8n, Grafana e Zabbix.
 
-## Visão geral
-
-```
-Raspberry Pi  →  MQTT  →  Mosquitto  →  n8n  →  PostgreSQL
-                                          └──────────────────►  Zabbix
-                                     Flask ◄── PostgreSQL
-                                     Browser (NOC telão) ◄── Flask
+```text
+ESP32 / Raspberry → Mosquitto ┬→ Node-RED → InfluxDB → Grafana
+                              └→ n8n → Zabbix
 ```
 
-## Início rápido (servidor)
+## Subir no Oracle Linux 9
+
+Pré-requisito: Docker com o plugin Compose já instalado.
 
 ```bash
-cp .env.example .env       # preencha as senhas
-docker compose up -d       # sobe os 4 serviços
+git clone <URL_DO_REPOSITORIO> dcmonitor
+cd dcmonitor
+cp .env.example .env
+nano .env
 ```
 
-Dashboard disponível em `http://<servidor>:5000`
-n8n disponível em `http://<servidor>:5678`
-
-Após subir, importe os fluxos n8n: veja [n8n/README.md](n8n/README.md).
-
-> **Homologação (sem Zabbix):** use `flow_principal_sem_zabbix.json` em vez de `flow_principal.json`.
-> **Produção:** `flow_principal.json` requer `zabbix_sender` instalado no container n8n (ver Dockerfile).
-
-## Início rápido (Raspberry Pi)
+Substitua todos os valores `TROQUE_*`. Gere chaves simples com:
 
 ```bash
-cd raspberry
-cp .env.example .env       # coloque o IP do servidor em MQTT_BROKER_HOST
-pip install -r requirements.txt
-python sensor_publisher.py
+openssl rand -hex 32
+docker run --rm -it nodered/node-red:4.1.11 node-red admin hash-pw
 ```
 
-## Verificação ponta a ponta
+Coloque o hash do Node-RED entre aspas simples no `.env`. Depois:
 
 ```bash
-# 1. Publicar medição de teste
-mosquitto_pub -h <servidor> -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
-  -t "fdctmon/b827eb00f6d0/attrs" \
-  -m '{"device_id":"b827eb00f6d0","temp":25.3,"umid":60.0,"fumaca":0,"presenca_notificavel":0,"distancia":185.5}'
-
-# 2. Confirmar no banco
-docker compose exec postgres psql -U fdctmon -d fdctmon \
-  -c "SELECT * FROM medicoes ORDER BY timestamp DESC LIMIT 3;"
-
-# 3. Verificar API
-curl http://<servidor>:5000/api/status
+docker compose config
+docker compose up -d --build
+docker compose ps
 ```
 
-## Testes
+Interfaces:
+
+| Serviço | Endereço |
+|---|---|
+| Grafana | `http://IP_DO_SERVIDOR:3000` |
+| Node-RED | `http://IP_DO_SERVIDOR:1880` |
+| n8n | `http://IP_DO_SERVIDOR:5678` |
+| InfluxDB | `http://IP_DO_SERVIDOR:8086` |
+| MQTT dos dispositivos | `IP_DO_SERVIDOR:1883` |
+
+O Node-RED, o datasource do Grafana e o dashboard já são provisionados. No n8n, faça somente a configuração descrita em [n8n/README.md](n8n/README.md).
+
+Se o firewall estiver ativo, libere MQTT para a rede dos dispositivos e as interfaces somente para a rede de gestão. Exemplo temporário para validação:
 
 ```bash
-cd web
-pip install flask psycopg2-binary pytest
-pytest tests/ -v
+sudo firewall-cmd --permanent --add-port={1883,1880,3000,5678,8086}/tcp
+sudo firewall-cmd --reload
 ```
+
+## ESP32
+
+```bash
+cd ESP32
+cp include/config.example.hpp include/config.hpp
+nano include/config.hpp
+pio run
+pio run -t upload
+pio device monitor
+```
+
+O ESP32 usa DHT22 no GPIO 23 e publica a cada 30 segundos. Veja [ESP32/README.md](ESP32/README.md).
+
+## Teste rápido sem hardware
+
+```bash
+mosquitto_pub -h IP_DO_SERVIDOR -p 1883 \
+  -u fdctmon_iot -P 'SENHA_MQTT' \
+  -t fdctmon/teste-001/attrs \
+  -m '{"schema_version":1,"device_id":"teste-001","sensor":"DHT22","temp":24.7,"umid":53.2,"ic":24.6}'
+```
+
+Em até 30 segundos, os dados devem aparecer no dashboard `DCMonitor - Ambiente` do Grafana.
+
+## Operação
+
+```bash
+docker compose logs -f mosquitto node-red influxdb
+docker compose logs -f n8n
+docker compose restart
+docker compose pull
+docker compose up -d --build
+```
+
+Deploy, backup, firewall e rollback: [docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md). Arquitetura e contrato MQTT: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) e [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md).
 
 ## Estrutura
 
+```text
+ESP32/       firmware PlatformIO do ESP32/DHT22
+raspberry/   publicador legado durante a migração
+mosquitto/   configuração MQTT
+node-red/    fluxo MQTT → InfluxDB
+n8n/         fluxo MQTT → Zabbix
+grafana/     datasource e dashboard provisionados
+docs/        requisitos, arquitetura, segurança e operação
+scripts/     verificações determinísticas
 ```
-docker-compose.yml     orquestração dos serviços
-mosquitto/             configuração do broker MQTT
-db/schema.sql          schema PostgreSQL
-n8n/                   fluxos n8n exportados como JSON
-raspberry/             script Python do Pi
-web/                   dashboard Flask
-docs/                  documentação viva
-```
-
-Consulte [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para o diagrama completo e
-[docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) para requisitos e critérios de aceite.

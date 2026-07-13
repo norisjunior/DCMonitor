@@ -1,54 +1,46 @@
-# SECURITY.md
+# Segurança
 
-> Mantido por: `security-review`.
+Status atual: **aprovado com ressalvas**, condicionado à rotação da senha Wi-Fi exposta no protótipo e ao preenchimento seguro do `.env`.
 
-## Superfície de ataque
+## Segredos
 
-| Ponto de entrada | Risco | Controle |
-|---|---|---|
-| Broker MQTT | Publish não autorizado de medições falsas | `allow_anonymous false`; usuário/senha em `.env`; healthcheck autenticado |
-| n8n | Acesso indevido à UI e credenciais | Basic Auth ativo; `N8N_ENCRYPTION_KEY` obrigatório no `.env` |
-| Flask dashboard | Exposição da última medição na rede interna | Sem autenticação por decisão de escopo; restringir acesso por rede/firewall |
-| PostgreSQL | Acesso indevido ao banco | Porta não publicada no host; credenciais via `.env`; acesso por rede Docker interna |
-| Zabbix sender | Injeção de comando por payload MQTT | Payload sanitizado no n8n antes do envio ao Zabbix |
-| Dependências | CVEs conhecidos | Revisar imagens e pacotes antes de release |
+- `.env` e `ESP32/include/config.hpp` são ignorados pelo Git.
+- Exemplos usam placeholders.
+- Tokens do InfluxDB, chave do n8n e secret do Node-RED não devem aparecer em flows, logs ou screenshots.
+- A senha Wi-Fi que existia no firmware inicial deve ser rotacionada antes do uso em produção.
+- O `.env` deve ter modo `0600` no Oracle Linux e backup em cofre seguro.
 
-## Gestão de segredos
+## Superfície de rede
 
-- Todos os segredos em variáveis de ambiente. Nunca em código ou histórico git.
-- `.env.example` contém apenas chaves com valores de placeholder.
-- Segredos de CI/CD armazenados no gerenciador de segredos da plataforma (GitHub Secrets, etc.).
+| Entrada | Controle |
+|---|---|
+| MQTT 1883 | usuário/senha obrigatórios; firewall limitado à rede IoT |
+| MQTT 1884 | anônimo, mas não publicado; somente rede Docker |
+| Node-RED 1880 | autenticação bcrypt e firewall de gestão |
+| n8n 5678 | owner account, chave de criptografia e firewall de gestão |
+| Grafana 3000 | senha administrativa, signup desativado e acesso NOC/gestão |
+| InfluxDB 8086 | token e firewall de gestão |
 
-## Autenticação e autorização
+TLS não está habilitado nesta fase. O controle compensatório é rede interna segmentada e firewall. Se qualquer tráfego cruzar rede não confiável, MQTT/HTTP devem receber TLS por proxy/certificados.
 
-- MQTT: autenticação por usuário/senha (`MQTT_USERNAME`, `MQTT_PASSWORD`) no Mosquitto.
-- n8n: Basic Auth (`N8N_USER`, `N8N_PASSWORD`).
-- Flask: sem autenticação por escopo; deve ficar restrito à rede interna do NOC.
-- PostgreSQL: acessível apenas na rede Docker, sem porta publicada no host.
+## Validação
 
-## Validação de entrada
+- Node-RED e n8n aceitam apenas `device_id` restrito e números em faixas explícitas.
+- InfluxDB line protocol escapa tags.
+- n8n chama `zabbix_sender` via `execFileSync` e argumentos separados, sem interpolar payload em shell.
+- ESP32 não recebe comandos MQTT nesta fase.
 
-- MQTT: fluxo n8n parseia JSON, exige campos obrigatórios, sanitiza `device_id` e converte números.
-- Flask: não recebe entrada de usuário além de `GET /` e `GET /api/status`.
-- Uploads: não existem no projeto.
+## Containers
 
-## Segurança MQTT / IoT
+- PostgreSQL e Flask não são expostos porque não existem na nova stack.
+- Volumes persistem dados; `docker compose down -v` é proibido em produção.
+- Imagens estão fixadas em versões/linhas menores e devem ser revisadas antes de atualização.
+- A permissão `NODE_FUNCTION_ALLOW_BUILTIN=child_process` aumenta a capacidade do Code node n8n; somente administradores confiáveis podem editar workflows.
 
-- Endereço do broker e credenciais ficam somente em `.env` / variáveis de ambiente.
-- Mosquitto gera `/tmp/mosquitto_passwd` em runtime; senha/hash não são versionados.
-- Tópico esperado: `fdctmon/{device_id}/attrs`; n8n assina `fdctmon/#`.
-- Pi e simulador usam `client.username_pw_set()` quando `MQTT_USERNAME` e `MQTT_PASSWORD` estão definidos.
-- TLS ainda não foi habilitado; controle compensatório esperado: rede interna/firewall.
+## Pendências antes de produção
 
-## Auditoria de dependências
-
-Execute antes de cada release:
-
-```bash
-# Python
-pip-audit
-```
-
-## Resposta a incidentes
-
-Se um segredo vazar: rotacione imediatamente, invalide todas as sessões ativas, audite os logs.
+1. Rotacionar a senha Wi-Fi antiga.
+2. Limitar portas por sub-rede no firewalld.
+3. Criar usuários/senhas fortes e únicas.
+4. Confirmar que a porta 1884 não está publicada por `docker compose ps`.
+5. Executar auditoria n8n e revisar imagens/dependências.

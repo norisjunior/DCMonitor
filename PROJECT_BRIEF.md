@@ -2,88 +2,92 @@
 
 ## 1. Visão geral
 
-- **Nome do projeto:** `FdctMonSys`
+- **Nome do projeto:** `FdctMonSys / DCMonitor`
 - **Responsável / cliente:** `Norisvaldo Ferraz Junior`
-- **Problema a resolver:** `Substituir a infraestrutura FIWARE por n8n + PostgreSQL, mantendo a coleta de sensores e a página de visualização. Dispositivo Raspberry Pi contém 3 sensores: DHT (temperatura e umidade), MQ-2 (fumaça) e HC-SR04 (presença/distância) e está instalado em um datacenter. O projeto deve permitir que a coleta de dados desse dispositivo seja publicada em uma interface Web, cujo servidor está hospedado em outro IP. Esse servidor é interno e deve hospedar tanto a base de dados quanto o fluxo automatizado usando n8n quanto a interface web`
-- **Resultado esperado:** `Ter uma página web que será publicada em um telão do NOC que mostrará a temperatura, umidade, nível de fumaça e presença, bem como enviar essas informações para o zabbix.`
-- **Usuários-alvo:** `NOC e responsáveis pela área de suporte e sustentação de infraestrutura`
+- **Problema a resolver:** Monitorar temperatura e umidade do datacenter com dispositivos IoT, armazenar séries temporais localmente, exibir os dados no NOC e encaminhar medições ao Zabbix. O Raspberry Pi atual continuará durante a migração e será substituído gradualmente pelo ESP32.
+- **Resultado esperado:** Uma stack Docker reproduzível no Oracle Linux 9 com Mosquitto, Node-RED, InfluxDB, Grafana e n8n; ESP32 publicando DHT22 a cada 30 segundos; Raspberry Pi coexistindo; dashboard Grafana e atualização do Zabbix.
+- **Usuários-alvo:** NOC e equipes de suporte e sustentação de infraestrutura.
 
 ## 2. Stack
 
-Preencha apenas o que se aplica. Deixe os demais como `N/A`.
+- **Firmware / IoT:** ESP32 DevKit + DHT22, Arduino/PlatformIO; Raspberry Pi 3 B + DHT11/MQ-2/HC-SR04 durante a transição
+- **Mensageria:** Eclipse Mosquitto MQTT
+- **Ingestão:** Node-RED
+- **Automação / integrações:** n8n
+- **Banco de telemetria:** InfluxDB 2.x
+- **Dashboard:** Grafana
+- **Infraestrutura:** Docker Compose em Oracle Linux 9
+- **ML:** N/A
 
-- **Firmware / IoT:** `Raspberry Pi, PRETTY_NAME="Debian GNU/Linux 11 (bullseye)"`
-- **Backend:** `Dispositivo IoT: python + MQTT. Servidor: Ferramenta de Fluxo: n8n + postgres + Mosquitto MQTT Broker`
-- **Frontend:** `Mesmo servidor que o back-end: Python/Flask`
-- **Banco de dados:** `PostgreSQL`
-- **ML / Clássico:** `N/A`
-- **ML / Deep Learning:** `N/A`
-- **Infraestrutura:** `Dispositivo IoT: python. Servidor: Docker.`
-
+> SQLite usado internamente por n8n e Grafana não é banco de dados do domínio. PostgreSQL e Flask não fazem parte da nova plataforma.
 
 ## 3. Requisitos funcionais
 
 | ID | Requisito | Prioridade | Critério de aceite |
 |---|---|---|---|
-| RF-001 | Dispositivo IoT amostra fumaça/presença a cada 2 s e publica JSON unificado no tópico `fdctmon/{device_id}/attrs` via MQTT a cada 10 s; temperatura usa cache local entre leituras de 30 s; fumaça usa histerese no dispositivo | Alta | Mensagem JSON `{"temp":X,"umid":X,"fumaca":X,"presenca_notificavel":X,"distancia":X,"device_id":"..."}` visível no broker; `fumaca` só muda após 3 leituras consecutivas no novo estado; n8n recebe e armazena |
-| RF-002 | Todas as medições armazenadas no PostgreSQL com timestamp | Alta | Tabela `medicoes` contém linha para cada mensagem MQTT recebida; SELECT retorna registros com timestamp correto |
-| RF-003 | Fluxo n8n principal: subscribe MQTT → parse JSON → INSERT PostgreSQL | Alta | n8n executa sem erros; registro inserido no banco após cada publicação do Pi |
-| RF-003b | Fluxo n8n de retenção: executa diariamente e deleta registros com mais de 90 dias | Baixa | Após execução manual do fluxo, registros com `timestamp < NOW() - INTERVAL '90 days'` são removidos |
-| RF-004 | Dispositivo IoT não armazena medições localmente; apenas publica via MQTT | Média | Nenhum arquivo local ou banco é gravado no Pi; todo armazenamento ocorre no servidor |
-| RF-005 | Dashboard web (Flask) exibe temperatura, umidade, fumaça, presença notificável e distância em tempo real | Alta | Página atualiza via AJAX a cada 10 s; valores refletem última medição do banco; alerta visual exibido se último registro tiver mais de 2 min |
-| RF-006 | Servidor encaminha medições ao Zabbix (host `10.32.8.57`, chaves: `temperatura`, `umidade`, `fumaca`, `presenca`) | Alta | `zabbix_sender` executado no servidor a cada mensagem MQTT; itens atualizados no Zabbix confirmados via latest data |
+| RF-001 | ESP32 lê DHT22 e publica temperatura, umidade e índice de calor via MQTT a cada 30 s | Alta | Payload JSON válido visível em `fdctmon/{device_id}/attrs`, com `device_id`, `temp`, `umid`, `ic`, `sensor=DHT22` e `schema_version=1` |
+| RF-002 | Raspberry Pi continua publicando durante a migração | Alta | Mensagens atuais do Raspberry em `fdctmon/{device_id}/attrs` continuam aceitas mesmo sem `ic` e sem `schema_version` |
+| RF-003 | Node-RED recebe MQTT, valida e grava no InfluxDB local | Alta | Cada mensagem válida gera pontos na measurement `ambiente`; payload inválido é rejeitado e aparece nos logs |
+| RF-004 | Grafana exibe temperatura, umidade, índice de calor e histórico | Alta | Datasource InfluxDB e dashboard `DCMonitor - Ambiente` são provisionados ao subir a stack |
+| RF-005 | n8n recebe a telemetria e envia ao Zabbix | Alta | Itens trapper `temperatura`, `umidade` e `indice_calor` do host configurado são atualizados; ausência de `ic` no Raspberry não interrompe os demais itens |
+| RF-006 | Serviços sobem no Oracle Linux 9 com um único Compose | Alta | `docker compose up -d --build` inicia os cinco serviços e `docker compose ps` indica serviços saudáveis |
+| RF-007 | Estado do ESP32 é publicado via MQTT Last Will | Média | `fdctmon/{device_id}/status` contém `online` quando conectado e `offline` após perda da sessão MQTT |
 
-## 4. Requisitos não-funcionais
+## 4. Requisitos não funcionais
 
 | ID | Requisito | Critério de aceite |
 |---|---|---|
-| RNF-001 | Segurança | Credenciais em `.env` / variáveis de ambiente; `.env` no `.gitignore`; OWASP Top 10 revisado antes de entrega |
-| RNF-002 | Desempenho | Latência publicação MQTT → banco ≤ 5 s em condições normais de rede local; verificável por inspeção no banco |
-| RNF-003 | Disponibilidade | Todos os serviços do servidor sobem com `docker compose up`; Pi reconecta automaticamente ao broker após queda |
-| RNF-004 | Manutenibilidade | Testes unitários para rotas Flask e queries ao banco; cobertura mínima das rotas `/` e `/api/status` |
-| RNF-005 | Observabilidade de dispositivo | Dashboard exibe aviso "Dispositivo offline" se nenhum registro foi inserido nos últimos 2 minutos |
-| RNF-007 | Simplicidade de código | Sem ORM, sem classes abstratas, sem design patterns desnecessários; cada arquivo tem responsabilidade única; qualquer desenvolvedor rastreia o fluxo de um dado lendo no máximo 3 arquivos |
-| RNF-008 | Observabilidade do ciclo de dados | Cada etapa Pi → Broker → n8n → PostgreSQL → Flask → Browser verificável de forma independente; logs em cada etapa visíveis via `docker compose logs`; ver tabela de pontos de verificação em `docs/REQUIREMENTS.md` |
+| RNF-001 | Segurança de segredos | Nenhuma senha/token no código; `.env` e `ESP32/include/config.hpp` ignorados pelo Git; exemplos contêm somente placeholders |
+| RNF-002 | Confiabilidade do dispositivo | Firmware não bloqueia aguardando rede; tenta reconectar Wi-Fi e MQTT periodicamente; leitura DHT22 inválida não é publicada |
+| RNF-003 | Persistência | Volumes Docker preservam Mosquitto, InfluxDB, Node-RED, n8n e Grafana após reinício |
+| RNF-004 | Retenção | Bucket de telemetria mantém 90 dias (`2160h`) por padrão |
+| RNF-005 | Observabilidade | Cada etapa ESP32/Raspberry → MQTT → Node-RED/n8n → InfluxDB/Zabbix → Grafana pode ser verificada separadamente por comando ou UI |
+| RNF-006 | Simplicidade | Firmware didático em um arquivo principal, configuração separada e fluxo de um dado rastreável sem frameworks adicionais |
+| RNF-007 | Rede | Apenas portas necessárias são publicadas; porta MQTT interna `1884` não é exposta pelo host |
 
-## 5. Decisões tomadas na sessão de requisitos (2026-06-08)
+## 5. Decisões confirmadas em 2026-07-13
 
-| # | Decisão | Alternativas descartadas |
+| # | Decisão | Consequência |
 |---|---|---|
-| D-001 | Zabbix integrado no servidor via n8n (não no Pi) | Pi chama `zabbix_sender` diretamente (era o comportamento anterior) |
-| D-002 | Tópico único JSON: `fdctmon/{device_id}/attrs` | Tópico por sensor; tópicos FIWARE legados |
-| D-003 | "Presença" no dashboard = `presenca_notificavel` (lógica 22h–6h) + distância bruta em cm | Presença booleana simples; distância bruta isolada |
-| D-004 | Threshold de dispositivo offline = 2 minutos | 30 s; 5 min; configurável por env |
-| D-005 | Retenção de dados = 90 dias via fluxo n8n agendado | Sem retenção; pg_cron; cron Linux |
-| D-006 | Atualização do dashboard via polling AJAX a cada 10 s | SSE; WebSocket; auto-refresh de página |
+| D-010 | InfluxDB + Grafana substituem PostgreSQL + Flask | Código e documentação da plataforma antiga deixam de participar do deploy |
+| D-011 | Raspberry Pi e ESP32 coexistem durante a migração | O contrato de ingestão aceita payload legado sem índice de calor |
+| D-012 | Node-RED é responsável apenas por validar e persistir telemetria | Regras de automação e integrações externas não ficam acopladas à ingestão |
+| D-013 | n8n encaminha medições ao Zabbix | Zabbix e futuras notificações Telegram ficam centralizados no motor de automação |
+| D-014 | ESP32 usa somente DHT22 nesta fase | Motor, LED, acelerômetro e outros sensores do protótipo de aula são removidos |
+| D-015 | ESP32 publica a cada 30 segundos | DHT22 respeita sua cadência e o volume esperado é de 2.880 mensagens/dia |
 
-## 5. Restrições
+## 6. Restrições
 
-- **Stack obrigatória (não negociável):** `Python no dispositivo, n8n no fluxo, PostgreSQL no banco, Flask no frontend`
-- **Hardware obrigatório:** `Raspberry Pi model 3 B`
-- **Ambiente de execução:** `Raspberry Pi, Linux <ex.: VPS Linux, Raspberry Pi, navegador>`
-- **Prazo:** `N/A`
-- **Restrições de custo:** `tudo será local, raspberry pi em rede 10.X.X.X e servidor na rede 192.168.X.X, sendo que os IP's se conversarão e hoje já se conversam`
-- **Restrições de dados:** `N/A`
+- **Stack obrigatória:** Mosquitto, Node-RED, InfluxDB 2.x, n8n e Grafana em Docker Compose
+- **Servidor:** Oracle Linux 9 com Docker já instalado
+- **Hardware atual:** Raspberry Pi 3 B com DHT11/MQ-2/HC-SR04
+- **Hardware de substituição:** ESP32 DevKit com DHT22 no GPIO 23
+- **Rede:** dispositivos e servidor possuem conectividade IP; Zabbix em rede alcançável pelo servidor
+- **Custo:** componentes locais e open source
 
-## 6. Fora do escopo
+## 7. Fora do escopo desta fase
 
-- `Não use FIWARE, deverá ser totalmente substituído`
+- PostgreSQL, Flask e FIWARE
+- Sensores adicionais no ESP32 além do DHT22
+- Comandos MQTT para atuadores, motor ou LED
+- Regras Telegram, até que limiares, destinatários e política anti-repetição sejam definidos
+- Alta disponibilidade ou cluster de InfluxDB/Grafana
+- Migração do histórico PostgreSQL antigo para InfluxDB
 
-## 7. Riscos conhecidos
+## 8. Riscos conhecidos
 
 | Risco | Impacto | Mitigação |
 |---|---|---|
-| `Dispositivo IoT não envia medições` | Alto | `observar se há conectividade, ser notificado na página Web que dispositivo está sem comunicação` |
+| Credencial Wi-Fi do protótipo foi exposta no código inicial | Alto | Removida do firmware; rotacionar a senha na infraestrutura antes de usar o dispositivo |
+| Zabbix não possui itens trapper com as chaves documentadas | Alto | Criar/validar itens antes de ativar o fluxo n8n |
+| n8n perde conexão MQTT ou falha ao executar `zabbix_sender` | Alto | Healthcheck, log de execuções e teste ponta a ponta independente |
+| Dados dos dois dispositivos usam payloads de gerações diferentes | Médio | Node-RED/n8n exigem apenas `device_id`, `temp` e `umid`; `ic` é opcional |
+| Perda do `.env` ou de volumes Docker | Alto | Backup periódico de `.env` em cofre seguro e dos volumes InfluxDB/Grafana/n8n |
 
-## 8. Referências e projetos existentes
+## 9. Referências existentes
 
-> Use esta seção quando o projeto reutiliza código, contratos ou conhecimento de outros repositórios.
-> Para cada referência, informe: onde está, o que contém e o que deve ser reaproveitado ou substituído.
-
-| O quê | Localização | Reaproveitar | Substituir |
-|---|---|---|---|
-| `Dispositivo IoT` | `OLD_PROJECT\FdctMonSys-App` | `lógica de leitura, envio de dados via payload MQTT` | `armazenamento de medições não precisa existir, tópicos MQTT podem ser refatorados para melhor organização` |
-| `FIWARE` | `OLD_PROJECT\FdctMonSys-Cloud` | `nada` | `a intenção é remover o fiware` |
-| `Página web` | `OLD_PROJECT\FdctMonSys-Web` | `node.js, axios` | `não precisa manter nada, quero substituir por python` |
-
-**Instrução para o agente:** antes de propor arquitetura ou plano, leia os arquivos referenciados acima para entender contratos existentes e evitar retrabalho.
+| O quê | Localização | Uso atual |
+|---|---|---|
+| Publicador Raspberry | `raspberry/sensor_publisher.py` | Mantido durante a transição e aceito pelo contrato MQTT legado |
+| Protótipo ESP32 de aula | histórico Git de `ESP32/` | Apenas referência; regras de motor/acelerômetro não pertencem ao DCMonitor |
+| Projeto FIWARE antigo | `OLD_PROJECT/` | Referência histórica; não reutilizar na plataforma nova |

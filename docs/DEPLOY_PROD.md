@@ -1,63 +1,98 @@
-# Deploy em produção
+# Deploy no Oracle Linux 9
 
-## Servidor
-
-```bash
-git clone <repo> dcmonitor && cd dcmonitor
-cp .env.example .env          # preencha todas as variáveis
-docker compose up -d --build  # sobe mosquitto, postgres, n8n, web
-```
-
-Verifique: `docker compose ps` — todos os serviços `Up`.
-
-## n8n (http://servidor:5678)
-
-1. **Credentials → New → MQTT** — nome `FdctMonSys MQTT`, host `mosquitto`, porta `1883`, usuário/senha de `MQTT_USERNAME` e `MQTT_PASSWORD`
-2. **Credentials → New → Postgres** — nome `FdctMonSys PostgreSQL`, host `postgres`, porta `5432`, db/user/pass do `.env`
-3. **Workflows → Import** → `n8n/flow_principal.json` → associe as credenciais → **ative**
-4. **Workflows → Import** → `n8n/flow_retencao.json` → associe credencial Postgres → mantenha **inativo** (script é o mecanismo principal)
-
-## Arquivo trimestral (cron no servidor)
+## 1. Preparar
 
 ```bash
-chmod +x scripts/export_historico.sh
-crontab -e
+git clone <URL_DO_REPOSITORIO> dcmonitor
+cd dcmonitor
+cp .env.example .env
+chmod 600 .env
+nano .env
 ```
 
-Adicione (ajuste o caminho):
-```
-0 3 31 3  * cd /caminho/dcmonitor && ./scripts/export_historico.sh >> ./backups/export.log 2>&1
-0 3 30 6  * cd /caminho/dcmonitor && ./scripts/export_historico.sh >> ./backups/export.log 2>&1
-0 3 30 9  * cd /caminho/dcmonitor && ./scripts/export_historico.sh >> ./backups/export.log 2>&1
-0 3 31 12 * cd /caminho/dcmonitor && ./scripts/export_historico.sh >> ./backups/export.log 2>&1
-```
-
-## Raspberry Pi
+Substitua todos os placeholders. Gere valores aleatórios com `openssl rand -hex 32`. Para o hash do Node-RED:
 
 ```bash
-cd raspberry
-cp .env.example .env          # MQTT_BROKER_HOST = IP do servidor; MQTT_USERNAME/PASSWORD iguais ao servidor
-pip install -r requirements.txt
-python sensor_publisher.py
+docker run --rm -it nodered/node-red:4.1.11 node-red admin hash-pw
 ```
 
-## Verificação ponta a ponta
+No `.env`, coloque o hash entre aspas simples para preservar `$`.
+
+## 2. Subir
 
 ```bash
-# Banco recebendo dados
-docker compose exec postgres psql -U $POSTGRES_USER -d $POSTGRES_DB \
-  -c "SELECT * FROM medicoes ORDER BY timestamp DESC LIMIT 3;"
-
-# Broker autenticado
-mosquitto_pub -h servidor -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
-  -t "fdctmon/b827eb00f6d0/attrs" \
-  -m '{"device_id":"b827eb00f6d0","temp":25.3,"umid":60.0,"fumaca":0,"presenca_notificavel":0,"distancia":185.5}'
-
-# Dashboard
-curl http://servidor:5000/api/status
-
-# Zabbix (aguardar ~30 s após o Pi publicar)
-# Verificar em: Zabbix → Monitoring → Latest Data → host configurado
+docker compose config
+docker compose up -d --build
+docker compose ps
 ```
 
-Dashboard disponível em `http://servidor:5000`; a página consulta `/api/status` a cada 10 s.
+O primeiro startup inicializa organização, bucket e token do InfluxDB. Alterar as variáveis `DOCKER_INFLUXDB_INIT_*` depois que o volume existe não recria essas estruturas.
+
+## 3. Firewall e SELinux
+
+Os bind mounts usam o sufixo `:Z`, adequado ao SELinux. Libere portas somente para as redes necessárias:
+
+| Porta | Origem recomendada | Uso |
+|---:|---|---|
+| 1883 | rede dos dispositivos | MQTT autenticado |
+| 1880 | rede de gestão | Node-RED |
+| 3000 | NOC/rede de gestão | Grafana |
+| 5678 | rede de gestão | n8n |
+| 8086 | rede de gestão | InfluxDB UI/API |
+
+Exemplo aberto para homologação:
+
+```bash
+sudo firewall-cmd --permanent --add-port={1883,1880,3000,5678,8086}/tcp
+sudo firewall-cmd --reload
+```
+
+Em produção, prefira rich rules por sub-rede em vez de exposição ampla.
+
+## 4. Configurar n8n e Zabbix
+
+Siga `n8n/README.md`: crie a credencial MQTT interna, importe `flow_zabbix.json` e ative. O Node-RED e o Grafana são provisionados automaticamente.
+
+## 5. Verificar
+
+```bash
+docker compose ps
+docker compose logs --tail=100 mosquitto node-red influxdb grafana n8n
+mosquitto_sub -h localhost -p 1883 -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" -t 'fdctmon/#' -v
+```
+
+Publique o payload de teste do README e confirme:
+
+1. Node-RED sem erro de ingestão.
+2. InfluxDB Data Explorer com measurement `ambiente`.
+3. Grafana `DCMonitor - Ambiente` atualizado.
+4. Execução n8n concluída.
+5. Latest Data do Zabbix atualizado.
+
+## Backup
+
+Antes de atualizar:
+
+```bash
+mkdir -p backups
+docker compose stop
+docker run --rm -v dcmonitor_influxdb_data:/data -v "$PWD/backups:/backup:Z" alpine \
+  tar czf /backup/influxdb-data.tgz -C /data .
+docker run --rm -v dcmonitor_n8n_data:/data -v "$PWD/backups:/backup:Z" alpine \
+  tar czf /backup/n8n-data.tgz -C /data .
+docker run --rm -v dcmonitor_grafana_data:/data -v "$PWD/backups:/backup:Z" alpine \
+  tar czf /backup/grafana-data.tgz -C /data .
+docker compose start
+```
+
+Guarde `.env` separadamente em cofre seguro. O diretório `backups/` é ignorado pelo Git.
+
+## Atualização e rollback
+
+```bash
+docker compose pull
+docker compose build --pull
+docker compose up -d
+```
+
+Para rollback, restaure a revisão anterior do Git e as imagens/volumes do backup. Nunca execute `docker compose down -v` em produção: `-v` apaga os dados persistidos.
