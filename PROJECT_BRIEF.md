@@ -57,6 +57,7 @@
 | D-015 | ESP32 publica a cada 30 segundos | DHT22 respeita sua cadência e o volume esperado é de 2.880 mensagens/dia |
 | D-016 | Serviços escutam em `0.0.0.0`; clientes usam IP ou DNS | O IP atual é `10.32.8.115`; DNS futuro não exige trocar o bind dos containers |
 | D-017 | Execução da comunicação fica no `.ino` | `DC_Comunicacao.hpp` mantém somente estado dos clientes e configuração de identidade/tópicos |
+| D-018 | `WiFi.begin()` executa uma vez; falhas usam `WiFi.reconnect()` | Tentativas em andamento não são reiniciadas; estados terminais respeitam o intervalo de 10 s |
 
 ## 6. Restrições
 

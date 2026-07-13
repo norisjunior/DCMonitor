@@ -2,6 +2,16 @@
 
 > Entradas mais recentes primeiro.
 
+## 2026-07-13 — Wi-Fi iniciado uma vez e reconectado por estado
+
+**Decisão:** Executar `WiFi.begin()` somente na inicialização e chamar `WiFi.reconnect()` a cada 10 segundos apenas quando o ESP32 informar desconexão, perda de conexão, falha de autenticação ou SSID indisponível.
+
+**Justificativa:** `WL_IDLE_STATUS` representa uma tentativa ainda em andamento. Reiniciá-la periodicamente pode atrasar ou impedir a associação, enquanto os estados terminais indicam que uma nova tentativa é necessária.
+
+**Alternativas descartadas:** Chamar `WiFi.begin()` para qualquer estado diferente de conectado, por reiniciar tentativas em andamento; testar apenas `WL_DISCONNECTED`, por não cobrir perda de conexão, credencial inválida e SSID ausente.
+
+**Consequências:** O fluxo permanece não bloqueante; a tentativa inicial acontece uma única vez; novas tentativas respeitam o intervalo configurado e o MQTT só é tratado após o Wi-Fi conectar.
+
 ## 2026-07-13 — Fluxo executável da comunicação no `.ino`
 
 **Decisão:** Manter em `DC_Comunicacao.hpp` somente os clientes Wi-Fi/MQTT, a identidade e os tópicos; mover inicialização, reconexão e serialização JSON para `ESP32DC.ino`.

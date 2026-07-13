@@ -63,7 +63,9 @@ Exemplo:
 ## Comportamento em falhas
 
 - O loop não fica preso aguardando Wi-Fi ou MQTT.
-- Wi-Fi é tentado novamente a cada 10 s e MQTT a cada 5 s.
+- `WiFi.begin()` inicia a conexão uma única vez; falhas de Wi-Fi usam
+  `WiFi.reconnect()` a cada 10 s, sem reiniciar uma tentativa ainda em andamento.
+- MQTT é tentado novamente a cada 5 s.
 - Leitura inválida do DHT22 não é publicada.
 - Não há armazenamento local: se a rede cair, aquela medição não é reenviada.
 - QoS 0 foi escolhido pela simplicidade e pela repetição da telemetria a cada 30 s.

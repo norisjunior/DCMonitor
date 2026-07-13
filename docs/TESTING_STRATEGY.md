@@ -23,6 +23,7 @@
 8. Dashboard diferencia séries por `device_id`.
 9. Compose renderizado publica `1883`, `1880`, `3000`, `5678` e `8086` com `host_ip: 0.0.0.0`; a porta `1884` permanece somente interna.
 10. Ao conectar ou reconectar o Wi-Fi, o monitor serial exibe o IP recebido; a manutenção do loop permanece não bloqueante.
+11. Durante uma tentativa Wi-Fi em andamento, não surge uma nova mensagem de conexão; após perda ou falha, `Reconectando ao Wi-Fi` aparece no máximo uma vez a cada 10 s.
 
 ## Critério de entrega
 

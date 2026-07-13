@@ -17,6 +17,8 @@ Mantido pela skill `documentation`.
 - Firmware ESP32 confirmado para DHT22 no GPIO 25, índice de calor, publicação MQTT a cada 30 s, Last Will e reconexão não bloqueante
 - Firmware ESP32 reorganizado em `.ino` orquestrador + `DC_Ambiente.hpp` + `DC_Comunicacao.hpp`, mantendo a `struct` no código da aplicação
 - Execução de Wi-Fi/MQTT e serialização JSON movidas para o `.ino`; header de comunicação reduzido a clientes, identidade e tópicos; IP recebido passa a aparecer no monitor serial
+- Inicialização Wi-Fi passa a chamar `WiFi.begin()` uma única vez e a usar `WiFi.reconnect()` somente após estados de falha, sem reiniciar tentativas em andamento
+- Roteiro de inicialização passa a testar MQTT com containers efêmeros de `mosquitto_sub` e `mosquitto_pub`, sem expor a senha no histórico do shell
 - Contrato MQTT atualizado com compatibilidade temporária para o Raspberry Pi legado
 - Node-RED passa a validar e persistir telemetria no InfluxDB
 - n8n passa a concentrar o envio ao Zabbix; Telegram permanece pendente de regras confirmadas

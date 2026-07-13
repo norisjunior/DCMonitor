@@ -32,11 +32,14 @@ void inicializarComunicacao() {
   Comunicacao::configurarIdentidade();
 
   WiFi.mode(WIFI_STA);
+  Serial.printf("[INFO] Conectando ao Wi-Fi %s...\n", Config::WIFI_SSID);
+  WiFi.begin(Config::WIFI_SSID, Config::WIFI_PASSWORD);
+
   Comunicacao::clienteMqtt.setServer(Config::MQTT_HOST, Config::MQTT_PORT);
   Comunicacao::clienteMqtt.setBufferSize(256);
   Comunicacao::clienteMqtt.setKeepAlive(60);
 
-  ultimaTentativaWifi = millis() - Config::INTERVALO_TENTATIVA_WIFI_MS;
+  ultimaTentativaWifi = millis();
   ultimaTentativaMqtt = millis() - Config::INTERVALO_TENTATIVA_MQTT_MS;
 
   Serial.printf("[INFO] Dispositivo: %s | DHT22: GPIO %u\n",
@@ -45,14 +48,25 @@ void inicializarComunicacao() {
 
 void manterConexoes() {
   const unsigned long agora = millis();
+  const wl_status_t estadoWifi = WiFi.status();
 
-  if (WiFi.status() != WL_CONNECTED) {
+  if (estadoWifi != WL_CONNECTED) {
     wifiEstavaConectado = false;
 
-    if (agora - ultimaTentativaWifi >= Config::INTERVALO_TENTATIVA_WIFI_MS) {
+    const bool conexaoFalhou =
+        estadoWifi == WL_DISCONNECTED ||
+        estadoWifi == WL_CONNECTION_LOST ||
+        estadoWifi == WL_CONNECT_FAILED ||
+        estadoWifi == WL_NO_SSID_AVAIL;
+
+    if (conexaoFalhou &&
+        agora - ultimaTentativaWifi >= Config::INTERVALO_TENTATIVA_WIFI_MS) {
       ultimaTentativaWifi = agora;
-      Serial.printf("[INFO] Conectando ao Wi-Fi %s...\n", Config::WIFI_SSID);
-      WiFi.begin(Config::WIFI_SSID, Config::WIFI_PASSWORD);
+      Serial.println("[INFO] Reconectando ao Wi-Fi...");
+
+      if (!WiFi.reconnect()) {
+        Serial.println("[WARN] Não foi possível reiniciar a conexão Wi-Fi.");
+      }
     }
     return;
   }
