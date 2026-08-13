@@ -21,7 +21,7 @@ mas torna obrigatória a restrição de origem no `firewalld`.
 | MQTT 1883 | usuário/senha obrigatórios; firewall limitado à rede IoT |
 | MQTT 1884 | anônimo, mas não publicado; somente rede Docker |
 | Node-RED 1880 | autenticação bcrypt e firewall de gestão |
-| n8n 5678 | owner account, chave de criptografia e firewall de gestão |
+| n8n 5678 | owner account, chave de criptografia e firewall de gestão; `N8N_SECURE_COOKIE=false` enquanto o acesso for HTTP interno |
 | Grafana 3000 | senha administrativa, signup desativado e acesso NOC/gestão |
 | InfluxDB 8086 | token e firewall de gestão |
 
@@ -51,3 +51,4 @@ registro DNS, configuração MQTT do ESP32 ou webhook do n8n.
 3. Criar usuários/senhas fortes e únicas.
 4. Confirmar que a porta 1884 não está publicada por `docker compose ps`.
 5. Executar auditoria n8n e revisar imagens/dependências.
+6. Reverter `N8N_SECURE_COOKIE` para `true` quando o n8n passar a ser servido por HTTPS.

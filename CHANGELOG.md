@@ -6,6 +6,15 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-08-13] — Acesso HTTP interno ao n8n
+
+### Alterado
+
+- `docker-compose.yml` — `N8N_SECURE_COOKIE=false` para permitir login no n8n via HTTP enquanto o servidor for acessado apenas pela rede interna
+- `docs/SECURITY.md` — decisão registrada na superfície de rede e adicionada como pendência de reversão quando o n8n passar a ser servido por HTTPS
+
+---
+
 ## [2026-07-13] — Migração para ESP32, InfluxDB e Grafana
 
 ### Alterado
