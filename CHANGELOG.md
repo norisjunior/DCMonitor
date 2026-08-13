@@ -6,6 +6,23 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-08-13b] — RSSI do ESP32 no contrato MQTT
+
+### Adicionado
+
+- `ESP32/src/ESP32DC.ino` — payload passa a incluir `rssi` com o retorno de `WiFi.RSSI()` no instante da publicação
+- `node-red/flows.json` — `rssi` validado na faixa -120 a 0 dBm e gravado como field opcional no measurement `ambiente`
+- `grafana/dashboards/dcmonitor.json` — painel `Sinal Wi-Fi atual` com limiares de cor e painel `Histórico do sinal Wi-Fi`
+
+### Alterado
+
+- `ESP32/include/config.example.hpp` — `VERSAO_FIRMWARE` para `1.1.0`
+- `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md` e `ESP32/README.md` — contrato MQTT, modelo InfluxDB e exemplo de payload sincronizados
+
+`schema_version` permanece `1`: o campo é opcional e aditivo, então o Raspberry legado e qualquer consumidor que o ignore continuam válidos.
+
+---
+
 ## [2026-08-13] — Acesso HTTP interno ao n8n
 
 ### Alterado

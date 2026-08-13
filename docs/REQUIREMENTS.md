@@ -14,7 +14,7 @@ Como operador do NOC, quero receber temperatura, umidade e índice de calor a ca
 
 - DHT22 conectado ao GPIO 25 e alimentado segundo a especificação do módulo.
 - Tópico `fdctmon/{device_id}/attrs`.
-- JSON com `schema_version`, `device_id`, `sensor`, `firmware_version`, `temp`, `umid` e `ic`.
+- JSON com `schema_version`, `device_id`, `sensor`, `firmware_version`, `temp`, `umid`, `ic` e `rssi`.
 - Valores em °C e %UR, arredondados em uma casa decimal.
 - Leitura inválida é registrada no serial e não é publicada.
 - Wi-Fi/MQTT reconectam sem bloquear indefinidamente o loop.
@@ -35,7 +35,7 @@ Como administrador, quero que o Node-RED grave as medições no InfluxDB para ma
 - Validação rejeita IDs, temperaturas e umidades fora do contrato.
 - Measurement: `ambiente`.
 - Tags: `device_id`, `sensor`.
-- Fields: `temperatura`, `umidade`, `indice_calor` quando disponível.
+- Fields: `temperatura`, `umidade`, `indice_calor` e `rssi` quando disponíveis.
 - Timestamp é atribuído pelo InfluxDB/servidor.
 - Retenção padrão do bucket `fdctmon`: 90 dias.
 
@@ -45,7 +45,7 @@ Como operador do NOC, quero um dashboard pronto após o deploy para visualizar v
 
 - Datasource `DCMonitor InfluxDB` provisionado automaticamente.
 - Dashboard `DCMonitor - Ambiente` provisionado automaticamente.
-- Painéis para temperatura, umidade, índice de calor e histórico.
+- Painéis para temperatura, umidade, índice de calor, sinal Wi-Fi e histórico.
 - Atualização automática a cada 30 segundos.
 
 ### HU-005 — Integração Zabbix
@@ -79,7 +79,8 @@ Exemplo ESP32:
   "firmware_version": "1.0.0",
   "temp": 24.7,
   "umid": 53.2,
-  "ic": 24.6
+  "ic": 24.6,
+  "rssi": -67
 }
 ```
 
@@ -89,6 +90,7 @@ Exemplo ESP32:
 | `temp` | number | sim | °C, faixa aceita -40 a 80 |
 | `umid` | number | sim | %UR, faixa aceita 0 a 100 |
 | `ic` | number | ESP32 sim; legado não | °C |
+| `rssi` | number | ESP32 sim; legado não | dBm, faixa aceita -120 a 0 |
 | `sensor` | string | ESP32 sim; legado não | `DHT22`, fallback `legacy` |
 | `schema_version` | integer | ESP32 sim; legado não | versão atual `1` |
 | `firmware_version` | string | ESP32 sim; legado não | rastreabilidade |

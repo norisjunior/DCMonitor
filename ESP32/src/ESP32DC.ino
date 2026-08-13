@@ -116,6 +116,7 @@ bool publicarLeitura(const LeituraAmbiente &leitura) {
   payload["temp"] = roundf(leitura.temperatura * 10.0F) / 10.0F;
   payload["umid"] = roundf(leitura.umidade * 10.0F) / 10.0F;
   payload["ic"] = roundf(leitura.indiceCalor * 10.0F) / 10.0F;
+  payload["rssi"] = WiFi.RSSI();
 
   char mensagem[256];
   const size_t tamanho = serializeJson(payload, mensagem, sizeof(mensagem));

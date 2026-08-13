@@ -21,6 +21,6 @@ constexpr unsigned long INTERVALO_PUBLICACAO_MS = 30000;
 constexpr unsigned long INTERVALO_TENTATIVA_WIFI_MS = 10000;
 constexpr unsigned long INTERVALO_TENTATIVA_MQTT_MS = 5000;
 
-constexpr char VERSAO_FIRMWARE[] = "1.0.0";
+constexpr char VERSAO_FIRMWARE[] = "1.1.0";
 
 }  // namespace Config

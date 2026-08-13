@@ -22,7 +22,7 @@ escuta não é usado como hostname público.
 
 | Componente | Responsabilidade |
 |---|---|
-| ESP32 | Ler DHT22, calcular índice de calor, publicar a cada 30 s e anunciar status MQTT |
+| ESP32 | Ler DHT22, calcular índice de calor, reportar RSSI, publicar a cada 30 s e anunciar status MQTT |
 | Raspberry | Manter coleta legada durante a migração |
 | Mosquitto | Autenticar dispositivos e distribuir mensagens aos consumidores internos |
 | Node-RED | Validar o contrato mínimo e escrever line protocol na API do InfluxDB |
@@ -56,7 +56,8 @@ O `.ino` concentra o fluxo executável para leitura didática. O header de comun
 ```text
 measurement: ambiente
 tags:        device_id, sensor
-fields:      temperatura (float), umidade (float), indice_calor (float opcional)
+fields:      temperatura (float), umidade (float), indice_calor (float opcional),
+             rssi (float opcional)
 timestamp:   atribuído pelo servidor
 ```
 
@@ -64,7 +65,9 @@ timestamp:   atribuído pelo servidor
 
 ## Contratos
 
-O contrato MQTT completo está em `docs/REQUIREMENTS.md`. O mínimo aceito durante a migração é `device_id`, `temp` e `umid`; o ESP32 versão 1 também envia `ic`, `sensor`, `schema_version` e `firmware_version`.
+O contrato MQTT completo está em `docs/REQUIREMENTS.md`. O mínimo aceito durante a migração é `device_id`, `temp` e `umid`; o ESP32 versão 1 também envia `ic`, `rssi`, `sensor`, `schema_version` e `firmware_version`.
+
+O `rssi` é diagnóstico de enlace, não medição ambiental. Por ser opcional e aditivo, foi incluído sem alterar `schema_version`: consumidores que o ignoram continuam válidos.
 
 ## Evolução prevista
 

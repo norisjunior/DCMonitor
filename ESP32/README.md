@@ -1,6 +1,6 @@
 # Firmware ESP32 — DCMonitor
 
-Firmware didático para ESP32 DevKit com um DHT22. Lê temperatura e umidade, calcula o índice de calor e publica via MQTT a cada 30 segundos.
+Firmware didático para ESP32 DevKit com um DHT22. Lê temperatura e umidade, calcula o índice de calor, reporta a potência do sinal Wi-Fi e publica via MQTT a cada 30 segundos.
 
 ## Organização do código
 
@@ -53,11 +53,12 @@ Ao conectar ao Wi-Fi, o monitor serial mostra o endereço recebido, por exemplo:
 - Estado: `fdctmon/{device_id}/status`, retido; `online` ou Last Will `offline`.
 - Publicação: 30 segundos.
 - Identidade: derivada do identificador único do chip.
+- Diagnóstico de enlace: `rssi` em dBm, lido de `WiFi.RSSI()` no instante da publicação. Acima de -70 dBm o sinal é bom; abaixo de -80 dBm há risco de desconexão.
 
 Exemplo:
 
 ```json
-{"schema_version":1,"device_id":"esp32-A1B2C3D4E5F6","sensor":"DHT22","firmware_version":"1.0.0","temp":24.7,"umid":53.2,"ic":24.6}
+{"schema_version":1,"device_id":"esp32-A1B2C3D4E5F6","sensor":"DHT22","firmware_version":"1.1.0","temp":24.7,"umid":53.2,"ic":24.6,"rssi":-67}
 ```
 
 ## Comportamento em falhas
