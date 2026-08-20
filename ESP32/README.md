@@ -1,6 +1,6 @@
 # Firmware ESP32 — DCMonitor
 
-Firmware didático para ESP32 DevKit com um DHT22. Lê temperatura e umidade, calcula o índice de calor, reporta a potência do sinal Wi-Fi e publica via MQTT a cada 30 segundos.
+Firmware didático para ESP32 DevKit com um DHT22 e um display OLED SSD1306. Lê temperatura e umidade, calcula o índice de calor, reporta a potência do sinal Wi-Fi, mostra as medições no display e publica via MQTT a cada 30 segundos.
 
 ## Organização do código
 
@@ -9,6 +9,7 @@ Firmware didático para ESP32 DevKit com um DHT22. Lê temperatura e umidade, ca
 | `src/ESP32DC.ino` | `struct`, coleta, Wi-Fi/MQTT, JSON e fluxo de `setup()`/`loop()` |
 | `src/DC_Ambiente.hpp` | Inicialização, leitura e índice de calor do DHT22 |
 | `src/DC_Comunicacao.hpp` | Clientes Wi-Fi/MQTT, identidade e composição dos tópicos |
+| `src/DC_Display.hpp` | OLED SSD1306: layout, caixas e formatação dos valores |
 | `include/config.hpp` | Configuração local de rede, GPIO, intervalo e versão |
 
 O `.ino` conta todo o fluxo de execução. O header de comunicação mantém apenas o estado compartilhado e a identidade; não inicializa conexões nem publica JSON. Não há um módulo de dados porque a única `struct` pertence à aplicação.
@@ -20,6 +21,17 @@ O `.ino` conta todo o fluxo de execução. O header de comunicação mantém ape
 | VCC | 3,3 V |
 | DATA | GPIO 25 |
 | GND | GND |
+
+| OLED SSD1306 128x64 | ESP32 |
+|---|---|
+| VCC | 3,3 V |
+| SCL | GPIO 26 |
+| SDA | GPIO 27 |
+| GND | GND |
+
+Endereço I2C padrão do módulo: `0x3C`. Alguns módulos usam `0x3D`; nesse caso ajuste `ENDERECO_OLED` no `config.hpp`. Os pinos do display não podem coincidir com `PINO_DHT`.
+
+O módulo usado é o bicolor: as 16 primeiras linhas são amarelas e o restante azul. O layout reserva a faixa amarela para o título `FUNDACENTRO` e inicia as caixas em `y = 17`, de modo que bordas e rótulos não fiquem partidos entre as duas cores. Trocar por um painel monocromático não exige alteração — apenas a faixa superior deixa de ser amarela.
 
 Se o DHT22 for o sensor avulso, use resistor pull-up de aproximadamente 10 kΩ entre VCC e DATA. Módulos prontos normalmente já possuem o resistor.
 
@@ -67,7 +79,9 @@ Exemplo:
 - `WiFi.begin()` inicia a conexão uma única vez; falhas de Wi-Fi usam
   `WiFi.reconnect()` a cada 10 s, sem reiniciar uma tentativa ainda em andamento.
 - MQTT é tentado novamente a cada 5 s.
-- Leitura inválida do DHT22 não é publicada.
+- Leitura inválida do DHT22 não é publicada nem atualiza o display.
+- O display acompanha o sensor mesmo sem Wi-Fi ou MQTT; só a publicação depende da rede.
+- Display ausente ou com endereço I2C diferente apenas gera aviso no serial; o firmware segue publicando.
 - Não há armazenamento local: se a rede cair, aquela medição não é reenviada.
 - QoS 0 foi escolhido pela simplicidade e pela repetição da telemetria a cada 30 s.
 

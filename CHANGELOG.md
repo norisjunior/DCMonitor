@@ -6,6 +6,26 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-08-13c] — Display OLED SSD1306 no ESP32
+
+### Adicionado
+
+- `ESP32/src/DC_Display.hpp` — módulo do OLED 128x64: título `FUNDACENTRO` centralizado e duas caixas lado a lado, temperatura à esquerda e umidade à direita, com rótulo em fonte pequena e valor em fonte grande
+- `ESP32/include/config.example.hpp` — `PINO_OLED_SDA`, `PINO_OLED_SCL` e `ENDERECO_OLED`
+- `ESP32/platformio.ini` — `Adafruit GFX Library` e `Adafruit SSD1306`
+
+### Alterado
+
+- `ESP32/src/ESP32DC.ino` — `loop()` passa a ler o sensor a cada 30 s independentemente do MQTT; o display é atualizado sempre e a publicação ocorre apenas com o cliente conectado
+- `ESP32/include/config.example.hpp` — `VERSAO_FIRMWARE` para `1.2.0`
+- `docs/ARCHITECTURE.md` e `ESP32/README.md` — organização do firmware, pinagem do OLED e comportamento em falhas
+
+A caixa da esquerda é mais larga que a da direita porque `Temperatura` ocupa 66 px na fonte pequena, acima da metade dos 128 px da tela. Display ausente ou em endereço I2C diferente apenas registra aviso no serial; a telemetria continua.
+
+O layout considera o painel bicolor de 0,96": as linhas 0 a 15 são amarelas. As caixas começam em `y = 17` para que borda e rótulos fiquem inteiros na área azul, e a folga interna entre rótulo e valor foi reduzida para o conjunto continuar cabendo nos 64 px.
+
+---
+
 ## [2026-08-13b] — RSSI do ESP32 no contrato MQTT
 
 ### Adicionado

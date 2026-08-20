@@ -4,6 +4,7 @@
 #include "config.hpp"
 #include "DC_Ambiente.hpp"
 #include "DC_Comunicacao.hpp"
+#include "DC_Display.hpp"
 
 struct LeituraAmbiente {
   float temperatura;
@@ -12,7 +13,7 @@ struct LeituraAmbiente {
   bool valida;
 };
 
-unsigned long ultimaPublicacao = 0;
+unsigned long ultimaMedicao = 0;
 unsigned long ultimaTentativaWifi = 0;
 unsigned long ultimaTentativaMqtt = 0;
 bool wifiEstavaConectado = false;
@@ -141,9 +142,20 @@ void setup() {
   Serial.begin(115200);
 
   Ambiente::inicializar(Config::PINO_DHT);
+
+  if (Display::inicializar(Config::PINO_OLED_SDA, Config::PINO_OLED_SCL,
+                           Config::ENDERECO_OLED)) {
+    Display::mostrarMensagem("Iniciando...");
+  } else {
+    Serial.println("[WARN] SSD1306 não encontrado; seguindo sem display.");
+  }
+
   inicializarComunicacao();
 
-  ultimaPublicacao = millis();
+  // Antecipa a primeira medição para o display não ficar 30 s em "Iniciando...",
+  // respeitando a estabilização do DHT22 após a energização.
+  ultimaMedicao = millis() - Config::INTERVALO_PUBLICACAO_MS +
+                  Config::ATRASO_PRIMEIRA_MEDICAO_MS;
   Serial.println("\n[INFO] DCMonitor iniciado.");
 }
 
@@ -151,12 +163,11 @@ void loop() {
   manterConexoes();
   const unsigned long agora = millis();
 
-  if (!Comunicacao::clienteMqtt.connected() ||
-      agora - ultimaPublicacao < Config::INTERVALO_PUBLICACAO_MS) {
+  if (agora - ultimaMedicao < Config::INTERVALO_PUBLICACAO_MS) {
     return;
   }
 
-  ultimaPublicacao = agora;
+  ultimaMedicao = agora;
   LeituraAmbiente leitura = coletarLeitura();
 
   if (!leitura.valida) {
@@ -164,5 +175,10 @@ void loop() {
     return;
   }
 
-  publicarLeitura(leitura);
+  // O display acompanha o sensor mesmo sem rede; a publicação depende do MQTT.
+  Display::mostrarAmbiente(leitura.temperatura, leitura.umidade);
+
+  if (Comunicacao::clienteMqtt.connected()) {
+    publicarLeitura(leitura);
+  }
 }
