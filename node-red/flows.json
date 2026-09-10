@@ -2,9 +2,9 @@
   {
     "id": "dcmonitor-tab",
     "type": "tab",
-    "label": "DCMonitor - MQTT para InfluxDB",
+    "label": "DCMonitor - MQTT para InfluxDB e Zabbix",
     "disabled": false,
-    "info": "Recebe telemetria dos dispositivos, valida e grava no InfluxDB local."
+    "info": "Recebe telemetria dos dispositivos, valida, grava no InfluxDB local e envia aos itens trapper do Zabbix."
   },
   {
     "id": "mqtt-telemetry",
@@ -20,7 +20,7 @@
     "rh": 0,
     "inputs": 0,
     "x": 150,
-    "y": 100,
+    "y": 120,
     "wires": [["parse-json"]]
   },
   {
@@ -32,59 +32,72 @@
     "action": "obj",
     "pretty": false,
     "x": 350,
-    "y": 100,
-    "wires": [["prepare-influx"]]
+    "y": 120,
+    "wires": [["validate-telemetry"]]
   },
   {
-    "id": "prepare-influx",
+    "id": "validate-telemetry",
     "type": "function",
     "z": "dcmonitor-tab",
-    "name": "Validar e montar linha InfluxDB",
-    "func": "const p = msg.payload;\nif (!p || typeof p !== 'object') {\n    node.error('Payload MQTT não é um objeto JSON', msg);\n    return null;\n}\n\nconst deviceId = String(p.device_id || '').trim();\nconst temp = Number(p.temp);\nconst humidity = Number(p.umid);\nconst heatIndex = p.ic === undefined || p.ic === null ? null : Number(p.ic);\nconst rssi = p.rssi === undefined || p.rssi === null ? null : Number(p.rssi);\n\nif (!/^[a-zA-Z0-9_-]{1,64}$/.test(deviceId)) {\n    node.error('device_id ausente ou inválido', msg);\n    return null;\n}\nif (!Number.isFinite(temp) || temp < -40 || temp > 80) {\n    node.error('temperatura fora da faixa válida', msg);\n    return null;\n}\nif (!Number.isFinite(humidity) || humidity < 0 || humidity > 100) {\n    node.error('umidade fora da faixa válida', msg);\n    return null;\n}\nif (heatIndex !== null && !Number.isFinite(heatIndex)) {\n    node.error('índice de calor inválido', msg);\n    return null;\n}\nif (rssi !== null && (!Number.isFinite(rssi) || rssi < -120 || rssi > 0)) {\n    node.error('RSSI fora da faixa válida', msg);\n    return null;\n}\n\nconst escapeTag = (value) => String(value).replace(/([ ,=\\\\])/g, '\\\\$1');\nconst sensor = escapeTag(p.sensor || 'legacy');\nconst fields = [`temperatura=${temp}`, `umidade=${humidity}`];\nif (heatIndex !== null) fields.push(`indice_calor=${heatIndex}`);\nif (rssi !== null) fields.push(`rssi=${rssi}`);\n\nmsg.payload = `ambiente,device_id=${escapeTag(deviceId)},sensor=${sensor} ${fields.join(',')}`;\nmsg.method = 'POST';\nmsg.url = `${env.get('INFLUXDB_URL')}/api/v2/write?org=${encodeURIComponent(env.get('INFLUXDB_ORG'))}&bucket=${encodeURIComponent(env.get('INFLUXDB_BUCKET'))}&precision=ns`;\nmsg.headers = {\n    'Authorization': `Token ${env.get('INFLUXDB_TOKEN')}`,\n    'Content-Type': 'text/plain; charset=utf-8'\n};\nreturn msg;",
+    "name": "Validar telemetria",
+    "func": "const p = msg.payload;\nif (!p || typeof p !== 'object') {\n    node.error('Payload MQTT não é um objeto JSON', msg);\n    return null;\n}\n\nconst deviceId = String(p.device_id || '').trim();\nconst temp = Number(p.temp);\nconst humidity = Number(p.umid);\nconst heatIndex = p.ic === undefined || p.ic === null ? null : Number(p.ic);\nconst rssi = p.rssi === undefined || p.rssi === null ? null : Number(p.rssi);\n\nif (!/^[a-zA-Z0-9_-]{1,64}$/.test(deviceId)) {\n    node.error('device_id ausente ou inválido', msg);\n    return null;\n}\nif (!Number.isFinite(temp) || temp < -40 || temp > 80) {\n    node.error('temperatura fora da faixa válida', msg);\n    return null;\n}\nif (!Number.isFinite(humidity) || humidity < 0 || humidity > 100) {\n    node.error('umidade fora da faixa válida', msg);\n    return null;\n}\nif (heatIndex !== null && !Number.isFinite(heatIndex)) {\n    node.error('índice de calor inválido', msg);\n    return null;\n}\nif (rssi !== null && (!Number.isFinite(rssi) || rssi < -120 || rssi > 0)) {\n    node.error('RSSI fora da faixa válida', msg);\n    return null;\n}\n\n// O nó InfluxDB escapa tags e fields e recebe o measurement da própria configuração.\nconst fields = { temperatura: temp, umidade: humidity };\nif (heatIndex !== null) fields.indice_calor = heatIndex;\nif (rssi !== null) fields.rssi = rssi;\nconst tags = { device_id: deviceId, sensor: String(p.sensor || 'legacy') };\n\nnode.status({ fill: 'green', shape: 'dot', text: `${deviceId}: ${temp} °C / ${humidity} %` });\n\n// Saída 1 grava no InfluxDB; saída 2 leva uma cópia própria ao Zabbix.\nreturn [\n    { ...msg, payload: [fields, tags] },\n    { ...msg, payload: { ...fields } }\n];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 570,
+    "y": 120,
+    "wires": [["write-influx"], ["build-zabbix-items"]]
+  },
+  {
+    "id": "write-influx",
+    "type": "influxdb out",
+    "z": "dcmonitor-tab",
+    "influxdb": "influxdb-server",
+    "name": "Gravar no InfluxDB",
+    "measurement": "ambiente",
+    "precision": "",
+    "retentionPolicy": "",
+    "database": "database",
+    "precisionV18FluxV20": "ms",
+    "retentionPolicyV18Flux": "",
+    "org": "${INFLUXDB_ORG}",
+    "bucket": "${INFLUXDB_BUCKET}",
+    "x": 820,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "build-zabbix-items",
+    "type": "function",
+    "z": "dcmonitor-tab",
+    "name": "Montar itens do Zabbix",
+    "func": "// As chaves são os itens trapper do host definido em ZABBIX_HOST_NAME\n// (campo \"Default hostname\" do nó zabbix-sender). Itens ausentes são omitidos.\nconst medicao = msg.payload;\nconst itens = [\n    ['temperatura', medicao.temperatura],\n    ['umidade', medicao.umidade],\n    ['indice_calor', medicao.indice_calor],\n    ['rssi', medicao.rssi]\n].filter(([, valor]) => valor !== undefined && valor !== null)\n .map(([chave, valor]) => [chave, String(valor)]);\n\nif (itens.length === 0) {\n    node.error('Nenhum item válido para enviar ao Zabbix', msg);\n    return null;\n}\n\nnode.status({ fill: 'green', shape: 'dot', text: `${itens.length} itens` });\nmsg.payload = itens;\nreturn msg;",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 590,
-    "y": 100,
-    "wires": [["write-influx"]]
+    "x": 830,
+    "y": 180,
+    "wires": [["send-zabbix"]]
   },
   {
-    "id": "write-influx",
-    "type": "http request",
+    "id": "send-zabbix",
+    "type": "zabbix-sender",
     "z": "dcmonitor-tab",
-    "name": "Gravar no InfluxDB",
-    "method": "use",
-    "ret": "txt",
-    "paytoqs": "ignore",
-    "url": "",
-    "tls": "",
-    "persist": false,
-    "proxy": "",
-    "insecureHTTPParser": false,
-    "authType": "",
-    "senderr": false,
-    "headers": [],
-    "x": 840,
-    "y": 100,
-    "wires": [["check-influx"]]
-  },
-  {
-    "id": "check-influx",
-    "type": "function",
-    "z": "dcmonitor-tab",
-    "name": "Confirmar gravação",
-    "func": "if (msg.statusCode !== 204) {\n    node.error(`InfluxDB respondeu HTTP ${msg.statusCode}: ${msg.payload}`, msg);\n    return null;\n}\nnode.status({ fill: 'green', shape: 'dot', text: 'medição gravada' });\nreturn null;",
-    "outputs": 0,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 1060,
-    "y": 100,
+    "name": "Enviar ao Zabbix",
+    "zabbixServer": "${ZABBIX_SERVER}",
+    "zabbixPort": "${ZABBIX_PORT}",
+    "sendTimestamps": false,
+    "withNs": false,
+    "timeout": 5000,
+    "defaultHostname": "${ZABBIX_HOST_NAME}",
+    "x": 1080,
+    "y": 180,
     "wires": []
   },
   {
@@ -95,7 +108,7 @@
     "scope": null,
     "uncaught": false,
     "x": 160,
-    "y": 180,
+    "y": 260,
     "wires": [["error-debug"]]
   },
   {
@@ -112,7 +125,7 @@
     "statusVal": "",
     "statusType": "auto",
     "x": 370,
-    "y": 180,
+    "y": 260,
     "wires": []
   },
   {
@@ -140,5 +153,20 @@
     "willQos": "0",
     "willPayload": "",
     "willMsg": {}
+  },
+  {
+    "id": "influxdb-server",
+    "type": "influxdb",
+    "name": "InfluxDB interno",
+    "hostname": "127.0.0.1",
+    "port": 8086,
+    "protocol": "http",
+    "database": "database",
+    "usetls": false,
+    "tls": "",
+    "influxdbVersion": "2.0",
+    "url": "${INFLUXDB_URL}",
+    "timeout": 10,
+    "rejectUnauthorized": true
   }
 ]
