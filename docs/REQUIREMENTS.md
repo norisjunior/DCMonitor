@@ -23,7 +23,7 @@ Como operador do NOC, quero receber temperatura, umidade e índice de calor a ca
 
 Como mantenedor, quero manter o Raspberry ativo durante a substituição para não interromper o monitoramento.
 
-- Node-RED e n8n aceitam `device_id`, `temp` e `umid` como contrato mínimo.
+- O Node-RED aceita `device_id`, `temp` e `umid` como contrato mínimo.
 - `ic`, `sensor`, `schema_version` e `firmware_version` são opcionais na transição.
 - Campos adicionais do Raspberry são ignorados nesta fase, sem quebrar o fluxo.
 
@@ -52,11 +52,11 @@ Como operador do NOC, quero um dashboard pronto após o deploy para visualizar v
 
 Como equipe de infraestrutura, quero receber as mesmas medições no Zabbix para usar alertas e histórico já existentes.
 
-- n8n assina `fdctmon/+/attrs` independentemente do Node-RED.
-- `zabbix_sender` envia `temperatura`, `umidade` e, quando presente, `indice_calor`.
-- Servidor, porta e host Zabbix vêm do `.env`.
-- Argumentos são passados sem composição de comando shell.
-- Falha Zabbix aparece na execução n8n e não impede a gravação no InfluxDB.
+- O mesmo fluxo Node-RED que grava no InfluxDB envia ao Zabbix, em ramificação separada.
+- São enviados `temperatura`, `umidade` e, quando presentes, `indice_calor` e `rssi`.
+- Servidor, porta e host Zabbix vêm do `.env` (`ZABBIX_SERVER`, `ZABBIX_PORT`, `ZABBIX_HOST_NAME`).
+- O envio usa o protocolo trapper por socket, sem execução de processo externo.
+- Falha no Zabbix aparece no nó `catch` do fluxo e não impede a gravação no InfluxDB.
 
 ### HU-006 — Implantação simples
 
@@ -103,7 +103,7 @@ Status do dispositivo: `fdctmon/{device_id}/status`, payload retido `online`/`of
 - Porta 1883 autenticada; porta 1884 restrita à rede Docker.
 - Interfaces fazem bind em `0.0.0.0`; as administrativas são protegidas e liberadas no firewall apenas para a rede de gestão.
 - Logs não devem imprimir senhas, tokens ou cabeçalho de autorização do InfluxDB.
-- A perda de uma integração não deve impedir as demais, pois Node-RED e n8n são consumidores MQTT independentes.
+- A perda de uma integração não deve impedir as demais: InfluxDB e Zabbix recebem por ramificações independentes do fluxo Node-RED.
 - Retenção de 90 dias; backup e restauração documentados em `docs/DEPLOY_PROD.md`.
 
 ## Pontos de verificação independentes
@@ -114,8 +114,7 @@ Status do dispositivo: `fdctmon/{device_id}/status`, payload retido `online`/`of
 | MQTT → Node-RED | Debug/log e status do nó de gravação na UI Node-RED |
 | Node-RED → InfluxDB | Consulta Flux na UI do InfluxDB |
 | InfluxDB → Grafana | Dashboard provisionado com dados por `device_id` |
-| MQTT → n8n | Execuções do workflow `DCMonitor - MQTT para Zabbix` |
-| n8n → Zabbix | Latest Data dos itens trapper do host configurado |
+| Node-RED → Zabbix | Latest Data dos itens trapper do host configurado |
 
 ## Fora do escopo atual
 
@@ -133,5 +132,5 @@ Status do dispositivo: `fdctmon/{device_id}/status`, payload retido `online`/`of
 | F2 | Firmware ESP32 DHT22 | `embedded-iot`, `qa-testing` |
 | F3 | MQTT → Node-RED → InfluxDB | `system-integrator`, `database` |
 | F4 | Grafana provisionado | `system-integrator`, `documentation` |
-| F5 | n8n → Zabbix | `system-integrator`, `security-review` |
+| F5 | Node-RED → Zabbix | `system-integrator`, `security-review` |
 | F6 | Telegram após definir regras | `product-requirements`, `system-integrator` |

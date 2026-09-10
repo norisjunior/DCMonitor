@@ -94,19 +94,15 @@ Credenciais de primeiro acesso:
 
 O hash bcrypt armazenado no `.env` não é a senha de login do Node-RED.
 
-## 6. Configurar o n8n
+## 6. Conferir o Zabbix
 
-O Node-RED, o InfluxDB e o Grafana são provisionados automaticamente. No n8n:
+O Node-RED, o InfluxDB e o Grafana são provisionados automaticamente, incluindo
+o envio ao Zabbix. O que não é provisionado está do lado do Zabbix: no host
+indicado por `ZABBIX_HOST_NAME`, os itens trapper `temperatura`, `umidade`,
+`indice_calor` e `rssi` precisam existir antes do teste. Veja os detalhes em
+[node-red/README.md](node-red/README.md).
 
-1. Crie o usuário proprietário.
-2. Crie uma credencial MQTT chamada `DCMonitor MQTT interno`.
-3. Use host `mosquitto`, porta `1884`, protocolo `mqtt`, sem usuário e senha.
-4. Importe `n8n/flow_zabbix.json`.
-5. Selecione a credencial no nó `Telemetria MQTT`.
-6. Ative o workflow.
-
-Os itens trapper do Zabbix precisam existir antes do teste. Veja os detalhes em
-[n8n/README.md](n8n/README.md).
+O n8n sobe sem workflow ativo e não precisa de configuração nesta etapa.
 
 ## 7. Testar o MQTT como se fosse um dispositivo
 
@@ -152,10 +148,9 @@ sessão com `unset MQTT_PASSWORD`.
 
 Depois, confirme:
 
-1. Node-RED sem erro no log.
+1. Node-RED sem erro no log e nós com status verde na UI.
 2. Dashboard `DCMonitor - Ambiente` atualizado no Grafana.
-3. Execução concluída no n8n, se o workflow já estiver ativo.
-4. Valores atualizados em **Latest Data** no Zabbix.
+3. Valores atualizados em **Latest Data** no Zabbix.
 
 ## Se algo não subir
 

@@ -1,8 +1,14 @@
-# n8n — Zabbix e automações
+# n8n — automações
 
-O n8n recebe a mesma telemetria MQTT que o Node-RED, mas não grava no InfluxDB. Sua responsabilidade atual é encaminhar valores ao Zabbix; regras Telegram serão adicionadas quando limiares e política anti-repetição forem definidos.
+O envio ao Zabbix passou para o Node-RED, no mesmo fluxo que grava no InfluxDB. Veja [node-red/README.md](../node-red/README.md).
+
+O n8n permanece na stack para as automações que ainda não têm regra definida — notificações Telegram, quando limiares e política anti-repetição forem confirmados. Hoje ele não tem workflow ativo.
+
+`flow_zabbix.json` e o `zabbix_sender` embutido na imagem continuam versionados como contingência. Se o workflow for importado e ativado enquanto o fluxo do Node-RED estiver rodando, o Zabbix receberá cada medição duas vezes.
 
 ## Configuração inicial
+
+Necessária apenas quando houver um workflow a usar.
 
 1. Acesse `http://IP_DO_SERVIDOR:5678` e crie o usuário proprietário.
 2. Em **Credentials**, crie uma credencial MQTT chamada `DCMonitor MQTT interno`:
@@ -12,21 +18,12 @@ O n8n recebe a mesma telemetria MQTT que o Node-RED, mas não grava no InfluxDB.
    - Protocol: `mqtt`
    - Usuário e senha: vazios
 
-3. Importe `n8n/flow_zabbix.json`.
-4. Selecione a credencial no nó `Telemetria MQTT`.
-5. Ative o workflow.
+3. Importe o workflow desejado e selecione a credencial no nó `Telemetria MQTT`.
+4. Ative o workflow.
 
-## Pré-requisito Zabbix
+## Contingência Zabbix
 
-No host cujo nome está em `ZABBIX_HOST_NAME`, crie itens do tipo **Zabbix trapper**:
-
-| Chave | Tipo sugerido |
-|---|---|
-| `temperatura` | Numeric (float) |
-| `umidade` | Numeric (float) |
-| `indice_calor` | Numeric (float) |
-
-O Raspberry legado não envia `indice_calor`; nesse caso, os outros dois itens continuam sendo enviados.
+Antes de reativar `flow_zabbix.json`, desative o nó `Enviar ao Zabbix` no Node-RED para não duplicar valores. Os itens trapper e o host são os mesmos descritos em [node-red/README.md](../node-red/README.md).
 
 Teste o executável dentro do container:
 
@@ -36,5 +33,3 @@ docker compose exec n8n sh -lc \
   'zabbix_sender -z "$ZABBIX_SERVER" -p "$ZABBIX_PORT" \
   -s "$ZABBIX_HOST_NAME" -k temperatura -o 25.0'
 ```
-
-Consulte **Executions** no n8n e **Latest Data** no Zabbix para validar o caminho completo.

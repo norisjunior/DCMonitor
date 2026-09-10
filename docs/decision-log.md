@@ -2,6 +2,26 @@
 
 > Entradas mais recentes primeiro.
 
+## 2026-09-10 — Node-RED envia ao Zabbix
+
+**Decisão:** O fluxo Node-RED que grava no InfluxDB passa a enviar as mesmas medições aos itens trapper do Zabbix, em uma segunda saída do nó de validação. Substitui a decisão de 2026-07-13, que concentrava o Zabbix no n8n.
+
+**Justificativa:** A validação de faixa e de `device_id` já acontece na ingestão; enviar dali reaproveita o dado validado, elimina o segundo consumidor MQTT e reduz a configuração manual do deploy — o n8n exigia criar credencial, importar e ativar o workflow a cada instalação.
+
+**Alternativas descartadas:** Manter o envio no n8n, que duplica validação e depende de configuração manual; enviar dos dois, que grava cada medição duas vezes no Zabbix; ESP32→Zabbix, que acoplaria firmware a infraestrutura externa.
+
+**Consequências:** O n8n fica sem workflow ativo, reservado às notificações Telegram; `n8n/flow_zabbix.json` e o `zabbix_sender` da imagem permanecem como contingência e não devem ser ativados junto com o fluxo do Node-RED. O item `rssi` entra no Zabbix. O nó `zabbix-sender` só acusa erro de transporte: item trapper inexistente é recusado pelo servidor sem aparecer no log.
+
+## 2026-09-10 — Nó nativo do InfluxDB e credencial por variável de ambiente
+
+**Decisão:** Trocar `function` + `http request` pelo nó `influxdb out` do `node-red-contrib-influxdb` na configuração 2.0. O token vai para `node-red/flows_cred.json` como o texto `${INFLUXDB_TOKEN}`.
+
+**Justificativa:** O nó nativo escapa tags e fields, trata a resposta HTTP e mantém a conexão; o fluxo deixa de montar line protocol e cabeçalho `Authorization` à mão. O Node-RED resolve variáveis de ambiente também em credenciais, então a provisão automática continua sem segredo no repositório.
+
+**Alternativas descartadas:** Manter `http request`, que obriga o fluxo a escapar caracteres de tag e a conferir `statusCode`; digitar o token na UI a cada instalação, que quebra o provisionamento automático; instalar o nó pelo palette manager, que não sobrevive à recriação do container.
+
+**Consequências:** A imagem passa a instalar `node-red-contrib-influxdb@0.7.0`; `flows_cred.json` é provisionado em texto puro e regravado cifrado pelo Node-RED no primeiro deploy. Sem confirmação por `statusCode`, a falha de gravação chega apenas pelo nó `catch`. Measurement, tags e fields não mudaram, então o dashboard Grafana continua válido.
+
 ## 2026-07-13 — Wi-Fi iniciado uma vez e reconectado por estado
 
 **Decisão:** Executar `WiFi.begin()` somente na inicialização e chamar `WiFi.reconnect()` a cada 10 segundos apenas quando o ESP32 informar desconexão, perda de conexão, falha de autenticação ou SSID indisponível.
@@ -43,6 +63,8 @@
 **Consequências:** Os módulos de sensor e comunicação têm responsabilidades claras; a comunicação recebe valores escalares para não depender de um tipo declarado no `.ino`; contrato MQTT e robustez permanecem inalterados.
 
 ## 2026-07-13 — n8n concentra Zabbix e futuras notificações
+
+> Substituída pela decisão de 2026-09-10 — Node-RED envia ao Zabbix.
 
 **Decisão:** Node-RED valida e persiste telemetria; n8n envia ao Zabbix e receberá futuras regras Telegram.
 

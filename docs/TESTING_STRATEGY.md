@@ -7,7 +7,7 @@
 | Estático | JSON, docs, segredos e Compose | `scripts/run_project_checks.sh` |
 | Firmware | Compilação ESP32 | `pio run -d ESP32` |
 | Integração | MQTT → Node-RED → InfluxDB | payload controlado + consulta Influx |
-| Integração | MQTT → n8n → Zabbix | execução n8n + Latest Data |
+| Integração | MQTT → Node-RED → Zabbix | payload controlado + Latest Data |
 | Visual | InfluxDB → Grafana | dashboard com três métricas e histórico |
 | Resiliência | Wi-Fi/MQTT/DHT22 | desligar rede/sensor e observar logs/status |
 

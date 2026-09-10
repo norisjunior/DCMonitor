@@ -64,9 +64,9 @@ sudo firewall-cmd --reload
 
 Em produção, prefira rich rules por sub-rede em vez de exposição ampla.
 
-## 4. Configurar n8n e Zabbix
+## 4. Preparar o Zabbix
 
-Siga `n8n/README.md`: crie a credencial MQTT interna, importe `flow_zabbix.json` e ative. O Node-RED e o Grafana são provisionados automaticamente.
+O Node-RED e o Grafana são provisionados automaticamente, inclusive o envio ao Zabbix. Crie antes os itens trapper `temperatura`, `umidade`, `indice_calor` e `rssi` no host de `ZABBIX_HOST_NAME`, conforme `node-red/README.md`. O n8n sobe sem workflow ativo.
 
 ## 5. Verificar
 
@@ -81,8 +81,7 @@ Publique o payload de teste do README e confirme:
 1. Node-RED sem erro de ingestão.
 2. InfluxDB Data Explorer com measurement `ambiente`.
 3. Grafana `DCMonitor - Ambiente` atualizado.
-4. Execução n8n concluída.
-5. Latest Data do Zabbix atualizado.
+4. Latest Data do Zabbix atualizado.
 
 ## Backup
 

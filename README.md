@@ -3,8 +3,8 @@
 Monitoramento ambiental de datacenter com ESP32/Raspberry, MQTT, InfluxDB, Node-RED, n8n, Grafana e Zabbix.
 
 ```text
-ESP32 / Raspberry → Mosquitto ┬→ Node-RED → InfluxDB → Grafana
-                              └→ n8n → Zabbix
+ESP32 / Raspberry → Mosquitto → Node-RED ┬→ InfluxDB → Grafana
+                                         └→ Zabbix
 ```
 
 ## Subir no Oracle Linux 9
@@ -55,7 +55,7 @@ registro apontando o nome para `10.32.8.115`. URLs públicas e HTTPS de Grafana,
 n8n e Node-RED serão configurados quando o proxy reverso e o certificado forem
 definidos.
 
-O Node-RED, o datasource do Grafana e o dashboard já são provisionados. No n8n, faça somente a configuração descrita em [n8n/README.md](n8n/README.md).
+O fluxo do Node-RED, o datasource do Grafana e o dashboard já são provisionados. Antes do primeiro envio, crie os itens trapper do Zabbix descritos em [node-red/README.md](node-red/README.md). O n8n sobe sem workflow ativo: veja [n8n/README.md](n8n/README.md).
 
 Se o firewall estiver ativo, libere MQTT para a rede dos dispositivos e as interfaces somente para a rede de gestão. Exemplo temporário para validação:
 
@@ -107,8 +107,8 @@ INICIALIZACAO.md  primeira subida e teste da plataforma no Oracle Linux
 ESP32/       firmware PlatformIO do ESP32/DHT22
 raspberry/   publicador legado durante a migração
 mosquitto/   configuração MQTT
-node-red/    fluxo MQTT → InfluxDB
-n8n/         fluxo MQTT → Zabbix
+node-red/    fluxo MQTT → InfluxDB e Zabbix
+n8n/         automações futuras; sem workflow ativo
 grafana/     datasource e dashboard provisionados
 docs/        requisitos, arquitetura, segurança e operação
 scripts/     verificações determinísticas

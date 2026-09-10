@@ -7,6 +7,7 @@ Status atual: **aprovado com ressalvas**, condicionado à rotação da senha Wi-
 - `.env` e `ESP32/include/config.hpp` são ignorados pelo Git.
 - Exemplos usam placeholders.
 - Tokens do InfluxDB, chave do n8n e secret do Node-RED não devem aparecer em flows, logs ou screenshots.
+- `node-red/flows_cred.json` versionado contém apenas o texto `${INFLUXDB_TOKEN}`; o valor real vem do ambiente e é cifrado com `NODE_RED_CREDENTIAL_SECRET` na primeira gravação.
 - A senha Wi-Fi que existia no firmware inicial deve ser rotacionada antes do uso em produção.
 - O `.env` deve ter modo `0600` no Oracle Linux e backup em cofre seguro.
 
@@ -32,9 +33,9 @@ registro DNS, configuração MQTT do ESP32 ou webhook do n8n.
 
 ## Validação
 
-- Node-RED e n8n aceitam apenas `device_id` restrito e números em faixas explícitas.
-- InfluxDB line protocol escapa tags.
-- n8n chama `zabbix_sender` via `execFileSync` e argumentos separados, sem interpolar payload em shell.
+- O Node-RED aceita apenas `device_id` restrito e números em faixas explícitas, antes de gravar ou enviar ao Zabbix.
+- O nó `influxdb out` monta o ponto e escapa tags e fields; o fluxo não concatena line protocol.
+- O envio ao Zabbix usa o protocolo trapper por socket, sem shell e sem processo externo.
 - ESP32 não recebe comandos MQTT nesta fase.
 
 ## Containers

@@ -6,6 +6,31 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-09-10] — Node-RED grava pelo nó nativo do InfluxDB e envia ao Zabbix
+
+### Adicionado
+
+- `node-red/flows.json` — nó `Enviar ao Zabbix` (`zabbix-sender`) alimentado por uma segunda saída do nó de validação; envia `temperatura`, `umidade`, `indice_calor` e `rssi` ao host de `ZABBIX_HOST_NAME`
+- `node-red/flows_cred.json` — credencial do InfluxDB provisionada como `${INFLUXDB_TOKEN}`; o valor real vem do ambiente
+- `node-red/Dockerfile` — `node-red-contrib-influxdb@0.7.0` e `node-red-contrib-zabbix-sender@1.0.0` embutidos na imagem
+- `docker-compose.yml` — `ZABBIX_SERVER`, `ZABBIX_PORT` e `ZABBIX_HOST_NAME` no serviço `node-red`
+
+### Alterado
+
+- `node-red/flows.json` — gravação passa do par `function` + `http request` para o nó `influxdb out` (configuração 2.0); a função deixa de montar line protocol, cabeçalho `Authorization` e URL
+- `docs/decision-log.md` — o envio ao Zabbix sai do n8n; entrada de 2026-07-13 marcada como substituída
+- `README.md`, `INICIALIZACAO.md`, `PROJECT_BRIEF.md`, `docs/*` e `n8n/README.md` — caminho MQTT → Node-RED → InfluxDB/Zabbix
+
+### Removido
+
+- `node-red/flows.json` — nó `Confirmar gravação`: o nó `influxdb out` não tem saída e reporta falha pelo `catch`
+
+O n8n fica sem workflow ativo. `n8n/flow_zabbix.json` e o `zabbix_sender` da imagem permanecem como contingência; ativá-lo junto com o fluxo do Node-RED faz o Zabbix receber cada medição duas vezes.
+
+Measurement, tags e fields não mudaram: o dashboard Grafana e as séries já gravadas continuam válidos.
+
+---
+
 ## [2026-08-13c] — Display OLED SSD1306 no ESP32
 
 ### Adicionado

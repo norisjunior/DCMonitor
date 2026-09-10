@@ -47,13 +47,12 @@ Confirme, nesta ordem:
 1. `docker compose logs node-red` sem erro.
 2. InfluxDB `http://localhost:8086` contém measurement `ambiente`.
 3. Grafana `http://localhost:3000` mostra os dois `device_id`.
-4. n8n registra execução após importar/ativar `flow_zabbix.json`.
-5. Zabbix Latest Data atualiza temperatura e umidade.
+4. Zabbix Latest Data atualiza `temperatura` e `umidade` no host de `ZABBIX_HOST_NAME`.
 
 ## Falhas
 
 - Publique JSON inválido e confirme que nenhum ponto é gravado.
-- Pare o Zabbix ou use endereço inválido; InfluxDB deve continuar recebendo.
+- Pare o Zabbix ou use endereço inválido; o erro aparece no debug `Erro de ingestão` e o InfluxDB deve continuar recebendo.
 - Desligue o ESP32 sem desconexão limpa; o tópico de status deve mudar para `offline`.
 - Reconecte o Wi-Fi e confirme no monitor serial a mensagem `Wi-Fi conectado. IP: ...` antes da reconexão MQTT.
 - Reinicie a stack e confirme que os dados permanecem.
