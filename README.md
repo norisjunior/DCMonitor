@@ -1,10 +1,10 @@
 # DCMonitor
 
-Monitoramento ambiental de datacenter com ESP32/Raspberry, MQTT, InfluxDB, Node-RED, n8n, Grafana e Zabbix.
+Monitoramento ambiental de datacenter com ESP32, MQTT, InfluxDB, Node-RED, n8n, Grafana e Zabbix.
 
 ```text
-ESP32 / Raspberry → Mosquitto → Node-RED ┬→ InfluxDB → Grafana
-                                         └→ Zabbix
+ESP32 → Mosquitto → Node-RED ┬→ InfluxDB → Grafana
+                             └→ Zabbix
 ```
 
 ## Subir no Oracle Linux 9
@@ -105,7 +105,6 @@ Deploy, backup, firewall e rollback: [docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md).
 ```text
 INICIALIZACAO.md  primeira subida e teste da plataforma no Oracle Linux
 ESP32/       firmware PlatformIO do ESP32/DHT22
-raspberry/   publicador legado durante a migração
 mosquitto/   configuração MQTT
 node-red/    fluxo MQTT → InfluxDB e Zabbix
 n8n/         automações futuras; sem workflow ativo

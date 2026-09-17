@@ -6,7 +6,7 @@
 bash scripts/run_project_checks.sh
 ```
 
-O script valida documentação, JSON, Compose e testes do Raspberry; compila o ESP32 quando `pio` está instalado.
+O script valida documentação, JSON, Compose e referências obsoletas; compila o ESP32 quando `pio` está instalado.
 
 ## Integração Docker
 
@@ -33,20 +33,20 @@ mosquitto_pub -h localhost -p 1883 \
   -m '{"schema_version":1,"device_id":"teste-esp32","sensor":"DHT22","firmware_version":"test","temp":24.7,"umid":53.2,"ic":24.6}'
 ```
 
-Publique payload legado:
+Publique um payload sem os campos opcionais:
 
 ```bash
 mosquitto_pub -h localhost -p 1883 \
   -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
-  -t fdctmon/teste-raspberry/attrs \
-  -m '{"device_id":"teste-raspberry","temp":25.3,"umid":60.0,"fumaca":0,"presenca_notificavel":0,"distancia":185.5}'
+  -t fdctmon/teste-minimo/attrs \
+  -m '{"device_id":"teste-minimo","temp":25.3,"umid":60.0}'
 ```
 
 Confirme, nesta ordem:
 
 1. `docker compose logs node-red` sem erro.
 2. InfluxDB `http://localhost:8086` contém measurement `ambiente`.
-3. Grafana `http://localhost:3000` mostra os dois `device_id`.
+3. Grafana `http://localhost:3000` mostra os dois `device_id` publicados acima.
 4. Zabbix Latest Data atualiza `temp` e `umid` no host homônimo ao `device_id`.
 
 ## Falhas

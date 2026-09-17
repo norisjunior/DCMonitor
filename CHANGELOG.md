@@ -6,6 +6,26 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-09-17b] — Raspberry Pi fora do escopo
+
+### Removido
+
+- `raspberry/` — publicador, simulador, dependências e testes de regressão do dispositivo legado
+- `scripts/run_project_checks.sh` — etapa `pytest`, sem alvo após a remoção dos testes
+- `PROJECT_BRIEF.md` — RF-002 e o risco de convivência de payloads de gerações diferentes
+- `docs/REQUIREMENTS.md` — HU-002 e a migração de histórico do escopo
+
+### Alterado
+
+- `node-red/flows.json` — fallback da tag `sensor` passa de `legacy` para `desconhecido`
+- `PROJECT_BRIEF.md` — D-011 marcada como substituída; D-020 registra a saída do Raspberry
+- `docs/decision-log.md` — entrada de 2026-09-17 e a de 2026-07-13 marcada como substituída
+- `README.md`, `docs/ARCHITECTURE.md`, `docs/REQUIREMENTS.md`, `docs/TESTING_LOCAL.md`, `docs/TESTING_STRATEGY.md`, `docs/EMBEDDED_IOT_GUIDELINES.md`, `node-red/README.md` e `scripts/README.md` — ESP32 como único dispositivo
+
+`ic`, `rssi`, `sensor`, `schema_version` e `firmware_version` continuam opcionais na validação, agora por robustez e não por compatibilidade: uma versão de firmware sem eles ainda grava temperatura e umidade.
+
+---
+
 ## [2026-09-17] — Itens do Zabbix no formato aceito pelo nó e host por dispositivo
 
 ### Corrigido

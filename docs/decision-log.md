@@ -2,6 +2,16 @@
 
 > Entradas mais recentes primeiro.
 
+## 2026-09-17 — Raspberry Pi fora do escopo
+
+**Decisão:** O Raspberry Pi deixa de fazer parte da plataforma. `raspberry/` sai do repositório e o ESP32 passa a ser o único dispositivo de campo. Substitui a decisão de 2026-07-13 sobre o contrato MQTT compatível durante a migração.
+
+**Justificativa:** O dispositivo não será mais usado, então manter publicador, simulador, testes e a narrativa de coexistência espalhada pela documentação descreve um estado que não existe mais — e o que a documentação afirma sobre o sistema precisa ser verificável nele.
+
+**Alternativas descartadas:** Mover `raspberry/` para `OLD_PROJECT/`, que preserva código morto no repositório sem ganho sobre o histórico do Git; manter os arquivos e apenas marcar como obsoletos na documentação, que mantém o custo de leitura e o risco de alguém reativá-los.
+
+**Consequências:** `ic`, `rssi`, `sensor`, `schema_version` e `firmware_version` continuam opcionais na validação do Node-RED, agora por robustez — uma versão de firmware sem eles ainda grava temperatura e umidade — e não mais por compatibilidade com o payload legado. O fallback da tag `sensor` passa de `legacy` para `desconhecido`. `scripts/run_project_checks.sh` deixa de rodar `pytest`, que não tem mais alvo. O código do publicador permanece recuperável pelo histórico do Git.
+
 ## 2026-09-17 — Itens do Zabbix em array de arrays e host igual ao `device_id`
 
 **Decisão:** O nó `Montar itens do Zabbix` passa a emitir `[[host, chave, valor], ...]`, com `host` igual ao `device_id` da medição e as chaves `temp`, `umid`, `headindex` e `rssi`. O campo `Default hostname` do nó `zabbix-sender` fica vazio e `ZABBIX_HOST_NAME` sai do serviço `node-red`.
@@ -105,6 +115,8 @@
 **Consequências:** Comprometimento de um container na rede permite acesso ao broker interno; firewall e mínimo privilégio continuam necessários.
 
 ## 2026-07-13 — Contrato MQTT compatível durante a migração
+
+> Substituída pela decisão de 2026-09-17 — Raspberry Pi fora do escopo.
 
 **Decisão:** O contrato mínimo é `device_id`, `temp` e `umid`; ESP32 v1 adiciona `ic`, `sensor`, `schema_version` e `firmware_version`.
 

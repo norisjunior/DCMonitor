@@ -52,7 +52,7 @@ Cada dispositivo precisa de um host no Zabbix com o nome exatamente igual ao seu
 
 As chaves diferem dos fields do InfluxDB porque reproduzem os itens já cadastrados no Zabbix; a correspondência fica na constante `CHAVES` do nó `Montar itens do Zabbix`. `headindex` é a grafia cadastrada no Zabbix para o índice de calor: se o item for renomeado para `heatindex`, altere a constante junto.
 
-Valores ausentes no payload são omitidos: o Raspberry legado envia somente `temp` e `umid`.
+Valores ausentes no payload são omitidos: um payload só com `temp` e `umid` envia dois itens em vez de quatro.
 
 O nó `zabbix-sender` chama `addItem(...item)` da biblioteca `node-zabbix-sender`, então cada item precisa ser o array `[host, chave, valor]`. Um array de objetos `{host, key, value}` passa pela validação do nó, não gera erro e chega ilegível ao Zabbix — o sintoma é o fluxo verde sem nenhum dado em **Latest data**.
 

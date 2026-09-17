@@ -4,7 +4,7 @@ Execute a partir da raiz do repositório.
 
 ## `run_project_checks.sh`
 
-Valida documentos obrigatórios, arquivos JSON, renderização do Compose, referências obsoletas/segredos conhecidos e regressão do Raspberry. Compila o firmware quando PlatformIO está disponível.
+Valida documentos obrigatórios, arquivos JSON, renderização do Compose e referências obsoletas/segredos conhecidos. Compila o firmware quando PlatformIO está disponível.
 
 ```bash
 bash scripts/run_project_checks.sh

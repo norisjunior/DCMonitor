@@ -7,8 +7,6 @@
 | MCU | ESP32 DevKit | — | — | Lógica 3,3 V |
 | Sensor | DHT22 | GPIO | 25 | Pull-up ~10 kΩ se sensor avulso |
 
-O Raspberry legado usa DHT11 e permanece separado do firmware ESP32.
-
 ## Convenções implementadas
 
 - Configuração sensível em `ESP32/include/config.hpp`, ignorada pelo Git.

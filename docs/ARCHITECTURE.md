@@ -1,14 +1,14 @@
 # Arquitetura — DCMonitor
 
-> Última atualização: 2026-09-10.
+> Última atualização: 2026-09-17.
 
 ## Fluxo de dados
 
 ```text
-ESP32 + DHT22 ──┐                                                       ┌─► InfluxDB ─► Grafana
-                ├── MQTT autenticado :1883 ──► Mosquitto ─┬─► Node-RED ─┤
-Raspberry Pi ───┘                              :1884      │             └─► Zabbix
-                                               interno    └─► n8n (Telegram, fase futura)
+                                                        ┌─► InfluxDB ─► Grafana
+ESP32 + DHT22 ── MQTT autenticado :1883 ──► Mosquitto ─┬─► Node-RED ─┤
+                                           :1884      │             └─► Zabbix
+                                           interno    └─► n8n (Telegram, fase futura)
 ```
 
 Todos os serviços de servidor executam no mesmo Docker Compose no Oracle Linux 9. O Node-RED grava no InfluxDB e envia ao Zabbix em duas ramificações independentes do mesmo fluxo: falha no Zabbix não bloqueia o InfluxDB. O n8n continua assinando a porta interna quando houver workflow ativo; hoje não há.
@@ -22,7 +22,6 @@ escuta não é usado como hostname público.
 | Componente | Responsabilidade |
 |---|---|
 | ESP32 | Ler DHT22, calcular índice de calor, reportar RSSI, exibir medições no OLED, publicar a cada 30 s e anunciar status MQTT |
-| Raspberry | Manter coleta legada durante a migração |
 | Mosquitto | Autenticar dispositivos e distribuir mensagens aos consumidores internos |
 | Node-RED | Validar o contrato mínimo, gravar no InfluxDB e alimentar os itens trapper do Zabbix |
 | InfluxDB | Armazenar séries temporais por 90 dias |
@@ -46,7 +45,7 @@ A cadência de leitura passou a ser independente do MQTT: o `loop()` lê o senso
 
 ## Fronteiras de segurança
 
-- `1883/tcp`: todas as interfaces do host → Mosquitto, autenticado, usado por ESP32/Raspberry.
+- `1883/tcp`: todas as interfaces do host → Mosquitto, autenticado, usado pelos ESP32.
 - `1884/tcp`: somente rede Docker, anônimo para eliminar credenciais em flows exportados; não publicado no host.
 - `1880`, `3000`, `5678`, `8086`: interfaces administrativas; firewall deve limitar à rede de gestão.
 - InfluxDB não recebe escrita direta dos dispositivos.
@@ -67,16 +66,15 @@ timestamp:   atribuído pelo servidor
 
 ## Contratos
 
-O contrato MQTT completo está em `docs/REQUIREMENTS.md`. O mínimo aceito durante a migração é `device_id`, `temp` e `umid`; o ESP32 versão 1 também envia `ic`, `rssi`, `sensor`, `schema_version` e `firmware_version`.
+O contrato MQTT completo está em `docs/REQUIREMENTS.md`. O mínimo exigido pela validação é `device_id`, `temp` e `umid`; o ESP32 versão 1 também envia `ic`, `rssi`, `sensor`, `schema_version` e `firmware_version`. Os campos aditivos continuam opcionais na validação para que uma versão de firmware sem eles não deixe de gravar.
 
 O `rssi` é diagnóstico de enlace, não medição ambiental. Por ser opcional e aditivo, foi incluído sem alterar `schema_version`: consumidores que o ignoram continuam válidos.
 
 ## Evolução prevista
 
-1. Operar Raspberry e ESP32 lado a lado.
-2. Validar estabilidade do ESP32/DHT22 e equivalência no Grafana/Zabbix.
-3. Adicionar sensores ao ESP32 somente após novos requisitos e versão de payload.
-4. Desativar o Raspberry quando a substituição for aceita.
+1. Ampliar a frota de ESP32, um host homônimo no Zabbix por dispositivo.
+2. Adicionar sensores ao ESP32 somente após novos requisitos e versão de payload.
+3. Definir as regras de notificação e ativar o n8n.
 
 ## Riscos
 

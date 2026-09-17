@@ -1,10 +1,10 @@
 # Requisitos — DCMonitor
 
-> Atualizado em 2026-07-13. Fonte de verdade resumida: `PROJECT_BRIEF.md`.
+> Atualizado em 2026-09-17. Fonte de verdade resumida: `PROJECT_BRIEF.md`.
 
 ## Objetivo confirmado
 
-Substituir PostgreSQL/Flask por uma plataforma de séries temporais no Oracle Linux 9. O ESP32 com DHT22 será o dispositivo principal, enquanto o Raspberry Pi permanece ativo durante a migração.
+Substituir PostgreSQL/Flask por uma plataforma de séries temporais no Oracle Linux 9. O ESP32 com DHT22 é o único dispositivo de campo.
 
 ## Histórias de usuário e critérios de aceite
 
@@ -18,14 +18,6 @@ Como operador do NOC, quero receber temperatura, umidade e índice de calor a ca
 - Valores em °C e %UR, arredondados em uma casa decimal.
 - Leitura inválida é registrada no serial e não é publicada.
 - Wi-Fi/MQTT reconectam sem bloquear indefinidamente o loop.
-
-### HU-002 — Coexistência do Raspberry
-
-Como mantenedor, quero manter o Raspberry ativo durante a substituição para não interromper o monitoramento.
-
-- O Node-RED aceita `device_id`, `temp` e `umid` como contrato mínimo.
-- `ic`, `sensor`, `schema_version` e `firmware_version` são opcionais na transição.
-- Campos adicionais do Raspberry são ignorados nesta fase, sem quebrar o fluxo.
 
 ### HU-003 — Persistência de séries temporais
 
@@ -89,11 +81,13 @@ Exemplo ESP32:
 | `device_id` | string `[A-Za-z0-9_-]`, até 64 chars | sim | tag e identidade |
 | `temp` | number | sim | °C, faixa aceita -40 a 80 |
 | `umid` | number | sim | %UR, faixa aceita 0 a 100 |
-| `ic` | number | ESP32 sim; legado não | °C |
-| `rssi` | number | ESP32 sim; legado não | dBm, faixa aceita -120 a 0 |
-| `sensor` | string | ESP32 sim; legado não | `DHT22`, fallback `legacy` |
-| `schema_version` | integer | ESP32 sim; legado não | versão atual `1` |
-| `firmware_version` | string | ESP32 sim; legado não | rastreabilidade |
+| `ic` | number | não | °C |
+| `rssi` | number | não | dBm, faixa aceita -120 a 0 |
+| `sensor` | string | não | `DHT22`, fallback `desconhecido` |
+| `schema_version` | integer | não | versão atual `1` |
+| `firmware_version` | string | não | rastreabilidade |
+
+O firmware 1.2.0 envia todos os campos. Eles seguem opcionais na validação para que uma versão anterior, ou um dispositivo em recuperação, continue gravando temperatura e umidade.
 
 Status do dispositivo: `fdctmon/{device_id}/status`, payload retido `online`/`offline`.
 
@@ -120,7 +114,6 @@ Status do dispositivo: `fdctmon/{device_id}/status`, payload retido `online`/`of
 
 - PostgreSQL, Flask e FIWARE.
 - Novos sensores no ESP32.
-- Migração de dados históricos.
 - Regras Telegram sem limiares e política de repetição confirmados.
 - Cluster/alta disponibilidade.
 

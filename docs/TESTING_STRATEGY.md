@@ -14,7 +14,7 @@
 ## Casos mínimos
 
 1. Payload ESP32 válido grava três fields.
-2. Payload Raspberry legado grava temperatura/umidade sem índice de calor.
+2. Payload sem `ic`/`rssi` grava temperatura e umidade e não interrompe os demais itens.
 3. JSON inválido não grava e gera log legível.
 4. Temperatura/umidade fora da faixa não grava.
 5. Interrupção do broker publica `offline` pelo Last Will.

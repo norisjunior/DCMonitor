@@ -21,13 +21,6 @@ if rg -n 'Th1ng\$IoT|FIAPIoT/aula09|POSTGRES_|Flask' \
   exit 1
 fi
 
-if command -v pytest >/dev/null 2>&1; then
-  echo "[raspberry] testes de regressão"
-  pytest -q raspberry/tests
-else
-  echo "[raspberry] pytest ausente; teste não executado"
-fi
-
 if command -v pio >/dev/null 2>&1; then
   echo "[esp32] compilação"
   if [ ! -f ESP32/include/config.hpp ]; then
