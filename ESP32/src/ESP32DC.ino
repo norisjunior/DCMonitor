@@ -30,9 +30,13 @@ LeituraAmbiente coletarLeitura() {
 }
 
 void inicializarComunicacao() {
-  Comunicacao::configurarIdentidade();
-
   WiFi.mode(WIFI_STA);
+
+  // O hostname vai ao DHCP entre o modo e o begin. Com varios ESP32 na rede,
+  // cada placa aparece na lista de leases pelo proprio device_id em vez do
+  // nome padrao do fabricante, repetido em todas.
+  WiFi.setHostname(Comunicacao::idDispositivo);
+
   Serial.printf("[INFO] Conectando ao Wi-Fi %s...\n", Config::WIFI_SSID);
   WiFi.begin(Config::WIFI_SSID, Config::WIFI_PASSWORD);
 
@@ -140,6 +144,11 @@ bool publicarLeitura(const LeituraAmbiente &leitura) {
 
 void setup() {
   Serial.begin(115200);
+
+  // A identidade vem primeiro: display, topicos MQTT, client-id e hostname de
+  // rede usam o mesmo identificador derivado do chip.
+  Comunicacao::configurarIdentidade();
+  Display::definirIdentificador(Comunicacao::idDispositivo);
 
   Ambiente::inicializar(Config::PINO_DHT);
 

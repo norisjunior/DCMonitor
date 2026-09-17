@@ -16,7 +16,7 @@ constexpr int16_t ALTURA_CHAR = 8;
 
 // Painel bicolor: as linhas 0 a 15 sao amarelas e as demais azuis. As caixas
 // comecam abaixo dessa fronteira para que borda e titulos fiquem inteiros no
-// azul; so o titulo geral ocupa a faixa amarela.
+// azul; a faixa amarela cabe exatamente as duas linhas do cabecalho.
 constexpr int16_t FIM_FAIXA_AMARELA = 16;
 constexpr int16_t CAIXA_Y = FIM_FAIXA_AMARELA + 1;
 constexpr int16_t CAIXA_ALTURA = ALTURA_TELA - CAIXA_Y;
@@ -30,6 +30,15 @@ constexpr int16_t CAIXA_DIR_LARGURA = LARGURA_TELA - CAIXA_ESQ_LARGURA;
 
 Adafruit_SSD1306 tela(LARGURA_TELA, ALTURA_TELA, &Wire, -1);
 bool disponivel = false;
+
+// Mesmo texto do device_id publicado, do topico MQTT e do host no Zabbix. Com
+// varios ESP32 em campo, e o que permite ir ate a placa e saber qual serie do
+// Grafana ela alimenta. Cabe na tela: 18 caracteres ocupam 108 dos 128 px.
+char identificador[24] = "";
+
+void definirIdentificador(const char *id) {
+  snprintf(identificador, sizeof(identificador), "%s", id);
+}
 
 int16_t larguraTexto(const char *texto, uint8_t tamanho) {
   return static_cast<int16_t>(strlen(texto)) * LARGURA_CHAR * tamanho;
@@ -88,13 +97,22 @@ bool inicializar(uint8_t pinoSda, uint8_t pinoScl, uint8_t endereco) {
   return disponivel;
 }
 
+// Titulo na primeira linha da faixa amarela, identificador na segunda.
+void desenharCabecalho() {
+  escreverCentralizado("FUNDACENTRO", 0, LARGURA_TELA, 0, 1);
+
+  if (identificador[0] != '\0') {
+    escreverCentralizado(identificador, 0, LARGURA_TELA, ALTURA_CHAR, 1);
+  }
+}
+
 void mostrarMensagem(const char *mensagem) {
   if (!disponivel) {
     return;
   }
 
   tela.clearDisplay();
-  escreverCentralizado("FUNDACENTRO", 0, LARGURA_TELA, 0, 1);
+  desenharCabecalho();
   escreverCentralizado(mensagem, 0, LARGURA_TELA, ALTURA_TELA / 2, 1);
   tela.display();
 }
@@ -105,7 +123,7 @@ void mostrarAmbiente(float temperatura, float umidade) {
   }
 
   tela.clearDisplay();
-  escreverCentralizado("FUNDACENTRO", 0, LARGURA_TELA, 0, 1);
+  desenharCabecalho();
   desenharCaixa(CAIXA_ESQ_X, CAIXA_ESQ_LARGURA, "Temperatura", temperatura,
                 "C");
   desenharCaixa(CAIXA_DIR_X, CAIXA_DIR_LARGURA, "Umidade", umidade, "%");

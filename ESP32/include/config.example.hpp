@@ -28,6 +28,6 @@ constexpr unsigned long ATRASO_PRIMEIRA_MEDICAO_MS = 3000;
 constexpr unsigned long INTERVALO_TENTATIVA_WIFI_MS = 10000;
 constexpr unsigned long INTERVALO_TENTATIVA_MQTT_MS = 5000;
 
-constexpr char VERSAO_FIRMWARE[] = "1.2.0";
+constexpr char VERSAO_FIRMWARE[] = "1.3.0";
 
 }  // namespace Config
