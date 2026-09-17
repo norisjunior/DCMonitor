@@ -2,6 +2,16 @@
 
 > Entradas mais recentes primeiro.
 
+## 2026-09-17 — Itens do Zabbix em array de arrays e host igual ao `device_id`
+
+**Decisão:** O nó `Montar itens do Zabbix` passa a emitir `[[host, chave, valor], ...]`, com `host` igual ao `device_id` da medição e as chaves `temp`, `umid`, `headindex` e `rssi`. O campo `Default hostname` do nó `zabbix-sender` fica vazio e `ZABBIX_HOST_NAME` sai do serviço `node-red`.
+
+**Justificativa:** O nó chama `addItem(...item)` da biblioteca `node-zabbix-sender`, cuja assinatura é `(host, key, value)` ou `(key, value)`. Qualquer outro formato — inclusive o array de objetos `{host, key, value}` — passa pela validação `Array.isArray`, não lança exceção e chega ilegível ao servidor: o fluxo fica verde e o Zabbix não registra nada. As chaves e o nome do host reproduzem o que já existe no Zabbix: o host `esp32-18B4C0D8CBB0` com os itens `temp`, `umid`, `headindex` e `rssi`.
+
+**Alternativas descartadas:** Manter um host fixo por `ZABBIX_HOST_NAME`, que obriga a reconfigurar o serviço a cada dispositivo novo e mistura medições de origens diferentes no mesmo host; renomear os itens no Zabbix para `temperatura`, `umidade` e `indice_calor`, que altera um template compartilhado com outros hosts sem ganho funcional.
+
+**Consequências:** Cada dispositivo precisa de um host no Zabbix com o nome exatamente igual ao seu `device_id`; um `device_id` sem host correspondente é recusado pelo servidor sem erro no Node-RED. As chaves do Zabbix deixam de coincidir com os fields do InfluxDB, e a correspondência passa a viver na constante `CHAVES` do nó. `headindex` mantém a grafia cadastrada no Zabbix; corrigir o item para `heatindex` exige alterar a constante na mesma sessão. `ZABBIX_HOST_NAME` continua apenas no serviço `n8n`, para a contingência `flow_zabbix.json`.
+
 ## 2026-09-10 — Node-RED envia ao Zabbix
 
 **Decisão:** O fluxo Node-RED que grava no InfluxDB passa a enviar as mesmas medições aos itens trapper do Zabbix, em uma segunda saída do nó de validação. Substitui a decisão de 2026-07-13, que concentrava o Zabbix no n8n.

@@ -29,7 +29,7 @@
 | RF-002 | Raspberry Pi continua publicando durante a migração | Alta | Mensagens atuais do Raspberry em `fdctmon/{device_id}/attrs` continuam aceitas mesmo sem `ic` e sem `schema_version` |
 | RF-003 | Node-RED recebe MQTT, valida e grava no InfluxDB local | Alta | Cada mensagem válida gera pontos na measurement `ambiente`; payload inválido é rejeitado e aparece nos logs |
 | RF-004 | Grafana exibe temperatura, umidade, índice de calor e histórico | Alta | Datasource InfluxDB e dashboard `DCMonitor - Ambiente` são provisionados ao subir a stack |
-| RF-005 | Node-RED envia a telemetria validada ao Zabbix | Alta | Itens trapper `temperatura`, `umidade`, `indice_calor` e `rssi` do host configurado são atualizados; ausência de `ic`/`rssi` no Raspberry não interrompe os demais itens |
+| RF-005 | Node-RED envia a telemetria validada ao Zabbix | Alta | Itens trapper `temp`, `umid`, `headindex` e `rssi` do host homônimo ao `device_id` são atualizados; ausência de `ic`/`rssi` no Raspberry não interrompe os demais itens |
 | RF-006 | Serviços sobem no Oracle Linux 9 com um único Compose | Alta | `docker compose up -d --build` inicia os cinco serviços e `docker compose ps` indica serviços saudáveis |
 | RF-007 | Estado do ESP32 é publicado via MQTT Last Will | Média | `fdctmon/{device_id}/status` contém `online` quando conectado e `offline` após perda da sessão MQTT |
 
@@ -45,7 +45,7 @@
 | RNF-006 | Simplicidade | Firmware didático em um arquivo principal, configuração separada e fluxo de um dado rastreável sem frameworks adicionais |
 | RNF-007 | Rede | Portas necessárias são publicadas explicitamente em `0.0.0.0`; firewall limita as origens; porta MQTT interna `1884` não é exposta pelo host |
 
-## 5. Decisões confirmadas em 2026-07-13
+## 5. Decisões confirmadas
 
 | # | Decisão | Consequência |
 |---|---|---|
@@ -58,6 +58,7 @@
 | D-016 | Serviços escutam em `0.0.0.0`; clientes usam IP ou DNS | O IP atual é `10.32.8.115`; DNS futuro não exige trocar o bind dos containers |
 | D-017 | Execução da comunicação fica no `.ino` | `DC_Comunicacao.hpp` mantém somente estado dos clientes e configuração de identidade/tópicos |
 | D-018 | `WiFi.begin()` executa uma vez; falhas usam `WiFi.reconnect()` | Tentativas em andamento não são reiniciadas; estados terminais respeitam o intervalo de 10 s |
+| D-019 | O host no Zabbix é o `device_id` do dispositivo | Cada dispositivo precisa de um host homônimo no Zabbix; não há host fixo por sala |
 
 ## 6. Restrições
 
@@ -82,7 +83,7 @@
 | Risco | Impacto | Mitigação |
 |---|---|---|
 | Credencial Wi-Fi do protótipo foi exposta no código inicial | Alto | Removida do firmware; rotacionar a senha na infraestrutura antes de usar o dispositivo |
-| Zabbix não possui itens trapper com as chaves documentadas | Alto | Criar/validar itens antes de subir o fluxo; o nó trapper não acusa item recusado |
+| Zabbix não possui host homônimo ao `device_id` ou itens trapper com as chaves documentadas | Alto | Criar/validar host e itens antes de subir o fluxo; o nó trapper não acusa item recusado |
 | Node-RED perde conexão MQTT ou falha ao enviar ao Zabbix | Alto | Healthcheck, nó `catch` com log de erro e teste ponta a ponta independente |
 | Dados dos dois dispositivos usam payloads de gerações diferentes | Médio | O Node-RED exige apenas `device_id`, `temp` e `umid`; `ic` e `rssi` são opcionais |
 | Perda do `.env` ou de volumes Docker | Alto | Backup periódico de `.env` em cofre seguro e dos volumes InfluxDB/Grafana/n8n |

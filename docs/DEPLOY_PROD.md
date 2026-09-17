@@ -66,7 +66,7 @@ Em produção, prefira rich rules por sub-rede em vez de exposição ampla.
 
 ## 4. Preparar o Zabbix
 
-O Node-RED e o Grafana são provisionados automaticamente, inclusive o envio ao Zabbix. Crie antes os itens trapper `temperatura`, `umidade`, `indice_calor` e `rssi` no host de `ZABBIX_HOST_NAME`, conforme `node-red/README.md`. O n8n sobe sem workflow ativo.
+O Node-RED e o Grafana são provisionados automaticamente, inclusive o envio ao Zabbix. Crie antes, para cada dispositivo, um host no Zabbix com o nome igual ao `device_id` e os itens trapper `temp`, `umid`, `headindex` e `rssi`, conforme `node-red/README.md`. O n8n sobe sem workflow ativo.
 
 ## 5. Verificar
 

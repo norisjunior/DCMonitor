@@ -97,9 +97,10 @@ O hash bcrypt armazenado no `.env` não é a senha de login do Node-RED.
 ## 6. Conferir o Zabbix
 
 O Node-RED, o InfluxDB e o Grafana são provisionados automaticamente, incluindo
-o envio ao Zabbix. O que não é provisionado está do lado do Zabbix: no host
-indicado por `ZABBIX_HOST_NAME`, os itens trapper `temperatura`, `umidade`,
-`indice_calor` e `rssi` precisam existir antes do teste. Veja os detalhes em
+o envio ao Zabbix. O que não é provisionado está do lado do Zabbix: cada
+dispositivo precisa de um host com o nome igual ao seu `device_id` — por
+exemplo `esp32-18B4C0D8CBB0` — e, nele, os itens trapper `temp`, `umid`,
+`headindex` e `rssi` antes do teste. Veja os detalhes em
 [node-red/README.md](node-red/README.md).
 
 O n8n sobe sem workflow ativo e não precisa de configuração nesta etapa.

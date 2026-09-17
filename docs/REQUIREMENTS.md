@@ -53,8 +53,8 @@ Como operador do NOC, quero um dashboard pronto após o deploy para visualizar v
 Como equipe de infraestrutura, quero receber as mesmas medições no Zabbix para usar alertas e histórico já existentes.
 
 - O mesmo fluxo Node-RED que grava no InfluxDB envia ao Zabbix, em ramificação separada.
-- São enviados `temperatura`, `umidade` e, quando presentes, `indice_calor` e `rssi`.
-- Servidor, porta e host Zabbix vêm do `.env` (`ZABBIX_SERVER`, `ZABBIX_PORT`, `ZABBIX_HOST_NAME`).
+- São enviadas as chaves `temp`, `umid` e, quando presentes, `headindex` e `rssi`.
+- O host de destino é o próprio `device_id`; servidor e porta vêm do `.env` (`ZABBIX_SERVER`, `ZABBIX_PORT`).
 - O envio usa o protocolo trapper por socket, sem execução de processo externo.
 - Falha no Zabbix aparece no nó `catch` do fluxo e não impede a gravação no InfluxDB.
 
@@ -114,7 +114,7 @@ Status do dispositivo: `fdctmon/{device_id}/status`, payload retido `online`/`of
 | MQTT → Node-RED | Debug/log e status do nó de gravação na UI Node-RED |
 | Node-RED → InfluxDB | Consulta Flux na UI do InfluxDB |
 | InfluxDB → Grafana | Dashboard provisionado com dados por `device_id` |
-| Node-RED → Zabbix | Latest Data dos itens trapper do host configurado |
+| Node-RED → Zabbix | Latest Data dos itens trapper do host homônimo ao `device_id` |
 
 ## Fora do escopo atual
 

@@ -47,7 +47,7 @@ Confirme, nesta ordem:
 1. `docker compose logs node-red` sem erro.
 2. InfluxDB `http://localhost:8086` contém measurement `ambiente`.
 3. Grafana `http://localhost:3000` mostra os dois `device_id`.
-4. Zabbix Latest Data atualiza `temperatura` e `umidade` no host de `ZABBIX_HOST_NAME`.
+4. Zabbix Latest Data atualiza `temp` e `umid` no host homônimo ao `device_id`.
 
 ## Falhas
 

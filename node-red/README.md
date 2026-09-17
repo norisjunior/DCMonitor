@@ -30,7 +30,8 @@ O fluxo versionado não contém endereços nem segredos. O Node-RED substitui `$
 | `INFLUXDB_ORG`, `INFLUXDB_BUCKET` | nó `Gravar no InfluxDB` |
 | `INFLUXDB_TOKEN` | credencial do nó de configuração, via `flows_cred.json` |
 | `ZABBIX_SERVER`, `ZABBIX_PORT` | destino do nó `Enviar ao Zabbix` |
-| `ZABBIX_HOST_NAME` | host dos itens trapper (`Default hostname`) |
+
+O host dos itens trapper não vem do ambiente: cada medição é enviada ao host cujo nome é igual ao `device_id` do dispositivo. O campo `Default hostname` do nó fica vazio de propósito — ele só valeria para itens enviados sem host.
 
 `flows_cred.json` guarda apenas o texto `${INFLUXDB_TOKEN}`. O Node-RED aceita o arquivo em texto puro, resolve a variável a cada início e regrava o arquivo cifrado com `NODE_RED_CREDENTIAL_SECRET`. O token não fica no repositório nem na imagem.
 
@@ -40,16 +41,20 @@ Measurement `ambiente`, tags `device_id` e `sensor`, fields `temperatura`, `umid
 
 ## Pré-requisito Zabbix
 
-No host indicado por `ZABBIX_HOST_NAME`, os itens do tipo **Zabbix trapper** precisam existir antes do primeiro envio:
+Cada dispositivo precisa de um host no Zabbix com o nome exatamente igual ao seu `device_id` — por exemplo `esp32-18B4C0D8CBB0` — e, nesse host, os itens do tipo **Zabbix trapper**:
 
-| Chave | Tipo sugerido |
-|---|---|
-| `temperatura` | Numeric (float) |
-| `umidade` | Numeric (float) |
-| `indice_calor` | Numeric (float) |
-| `rssi` | Numeric (float) |
+| Field no InfluxDB | Chave no Zabbix | Tipo |
+|---|---|---|
+| `temperatura` | `temp` | Numeric (float) |
+| `umidade` | `umid` | Numeric (float) |
+| `indice_calor` | `headindex` | Numeric (float) |
+| `rssi` | `rssi` | Numeric (float) |
 
-As chaves são iguais aos nomes dos fields no InfluxDB. Valores ausentes no payload são omitidos: o Raspberry legado envia somente `temperatura` e `umidade`.
+As chaves diferem dos fields do InfluxDB porque reproduzem os itens já cadastrados no Zabbix; a correspondência fica na constante `CHAVES` do nó `Montar itens do Zabbix`. `headindex` é a grafia cadastrada no Zabbix para o índice de calor: se o item for renomeado para `heatindex`, altere a constante junto.
+
+Valores ausentes no payload são omitidos: o Raspberry legado envia somente `temp` e `umid`.
+
+O nó `zabbix-sender` chama `addItem(...item)` da biblioteca `node-zabbix-sender`, então cada item precisa ser o array `[host, chave, valor]`. Um array de objetos `{host, key, value}` passa pela validação do nó, não gera erro e chega ilegível ao Zabbix — o sintoma é o fluxo verde sem nenhum dado em **Latest data**.
 
 O nó `zabbix-sender` registra erro apenas para falha de conexão, tempo esgotado ou resposta inválida. Item trapper inexistente é recusado pelo servidor Zabbix sem gerar erro no Node-RED, então confira **Latest Data** ao criar itens novos.
 

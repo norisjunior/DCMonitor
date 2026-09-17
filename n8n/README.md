@@ -23,7 +23,7 @@ Necessária apenas quando houver um workflow a usar.
 
 ## Contingência Zabbix
 
-Antes de reativar `flow_zabbix.json`, desative o nó `Enviar ao Zabbix` no Node-RED para não duplicar valores. Os itens trapper e o host são os mesmos descritos em [node-red/README.md](../node-red/README.md).
+Antes de reativar `flow_zabbix.json`, desative o nó `Enviar ao Zabbix` no Node-RED para não duplicar valores. Os itens trapper são os descritos em [node-red/README.md](../node-red/README.md). A contingência difere em um ponto: envia a um host fixo, o de `ZABBIX_HOST_NAME`, e não ao host homônimo ao `device_id`.
 
 Teste o executável dentro do container:
 
@@ -31,5 +31,5 @@ Teste o executável dentro do container:
 docker compose exec n8n zabbix_sender --version
 docker compose exec n8n sh -lc \
   'zabbix_sender -z "$ZABBIX_SERVER" -p "$ZABBIX_PORT" \
-  -s "$ZABBIX_HOST_NAME" -k temperatura -o 25.0'
+  -s "$ZABBIX_HOST_NAME" -k temp -o 25.0'
 ```

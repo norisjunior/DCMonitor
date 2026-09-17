@@ -6,6 +6,27 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-09-17] — Itens do Zabbix no formato aceito pelo nó e host por dispositivo
+
+### Corrigido
+
+- `node-red/flows.json` — `Montar itens do Zabbix` emite `[[host, chave, valor], ...]`; o nó `zabbix-sender` chama `addItem(...item)`, então qualquer outro formato é aceito sem erro e chega ilegível ao servidor
+
+### Alterado
+
+- `node-red/flows.json` — o host de destino passa a ser o `device_id` da medição, e não um host fixo; a saída 2 do nó `Validar telemetria` leva o `device_id` junto dos fields
+- `node-red/flows.json` — chaves alinhadas aos itens já cadastrados no Zabbix: `temp`, `umid`, `headindex` e `rssi`, reunidas na constante `CHAVES`
+- `node-red/flows.json` — `Default hostname` do nó `zabbix-sender` fica vazio: o host vem de cada item
+- `docker-compose.yml` e `.env.example` — `ZABBIX_HOST_NAME` sai do serviço `node-red` e permanece no `n8n`, para a contingência
+- `n8n/flow_zabbix.json` — chaves da contingência alinhadas às do Zabbix
+- `PROJECT_BRIEF.md`, `INICIALIZACAO.md`, `docs/*`, `node-red/README.md` e `n8n/README.md` — chaves, host por dispositivo e o formato exigido pelo nó
+
+O sintoma corrigido era o fluxo verde no Node-RED sem nenhum dado em **Latest data**: o nó só reporta falha de transporte, e um item recusado pelo servidor não aparece no log.
+
+Measurement, tags e fields do InfluxDB não mudaram; as chaves do Zabbix deixam de coincidir com eles de propósito.
+
+---
+
 ## [2026-09-10] — Node-RED grava pelo nó nativo do InfluxDB e envia ao Zabbix
 
 ### Adicionado
