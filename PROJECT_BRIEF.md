@@ -59,6 +59,7 @@
 | D-018 | `WiFi.begin()` executa uma vez; falhas usam `WiFi.reconnect()` | Tentativas em andamento não são reiniciadas; estados terminais respeitam o intervalo de 10 s |
 | D-019 | O host no Zabbix é o `device_id` do dispositivo | Cada dispositivo precisa de um host homônimo no Zabbix; não há host fixo por sala |
 | D-020 | O Raspberry Pi sai do escopo; o ESP32 é o único dispositivo | `raspberry/` deixa o repositório; `ic`, `rssi` e `sensor` seguem opcionais na validação por robustez, não por compatibilidade |
+| D-021 | Um único binário para toda a frota; identidade derivada do chip | Gravar uma placa nova não exige editar `config.hpp`; nomes legíveis ficam no Zabbix e no Grafana, não no firmware |
 
 ## 6. Restrições
 

@@ -2,6 +2,16 @@
 
 > Entradas mais recentes primeiro.
 
+## 2026-09-17 — Identidade da frota derivada do chip, nomes legíveis no servidor
+
+**Decisão:** Todo ESP32 recebe o mesmo binário. O `device_id` continua derivado de `ESP.getEfuseMac()` e passa a ser também o hostname de rede (`WiFi.setHostname()`) e o cabeçalho do display. Nomes legíveis para o NOC — sala, rack, andar — ficam no nome visível do host no Zabbix e nos rótulos do Grafana, nunca no firmware.
+
+**Justificativa:** Uma placa nova entra em operação compilando e gravando, sem editar `config.hpp`, sem planilha de IDs e sem risco de dois dispositivos assumirem a mesma identidade — o que, no MQTT, derruba os dois em ciclo, porque o client-id também vem daí. Renomear um ponto de medição passa a ser uma edição no servidor, não uma regravação de firmware com a placa em campo.
+
+**Alternativas descartadas:** `DEVICE_ID` fixo em `config.hpp` por dispositivo, que exige um build por placa e permite duplicidade silenciosa; publicar um campo `local`/`sala` no payload, que coloca no firmware uma informação que muda quando o equipamento é remanejado e obriga a regravar para corrigir um rótulo; tópico por sala em vez de por dispositivo, que perde a rastreabilidade de qual placa gerou a medição.
+
+**Consequências:** O `device_id` atravessa MQTT, InfluxDB, Zabbix, DHCP e display sem tradução, e é o texto que se lê na placa para achar a série correspondente. Em troca, o identificador não é mnemônico: a correspondência entre `esp32-18B4C0D8CBB0` e "Sala Cofre" precisa existir em algum lugar do servidor — hoje no nome visível do host do Zabbix. O Node-RED assina `fdctmon/+/attrs`, então nenhuma placa nova exige alteração no fluxo; no Zabbix, cada uma exige um host homônimo criado antes do primeiro envio.
+
 ## 2026-09-17 — Raspberry Pi fora do escopo
 
 **Decisão:** O Raspberry Pi deixa de fazer parte da plataforma. `raspberry/` sai do repositório e o ESP32 passa a ser o único dispositivo de campo. Substitui a decisão de 2026-07-13 sobre o contrato MQTT compatível durante a migração.

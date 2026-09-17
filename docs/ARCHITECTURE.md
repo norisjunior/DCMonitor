@@ -21,7 +21,7 @@ escuta não é usado como hostname público.
 
 | Componente | Responsabilidade |
 |---|---|
-| ESP32 | Ler DHT22, calcular índice de calor, reportar RSSI, exibir medições no OLED, publicar a cada 30 s e anunciar status MQTT |
+| ESP32 | Ler DHT22, calcular índice de calor, reportar RSSI, exibir medições e `device_id` no OLED, publicar a cada 30 s e anunciar status MQTT |
 | Mosquitto | Autenticar dispositivos e distribuir mensagens aos consumidores internos |
 | Node-RED | Validar o contrato mínimo, gravar no InfluxDB e alimentar os itens trapper do Zabbix |
 | InfluxDB | Armazenar séries temporais por 90 dias |
@@ -42,6 +42,23 @@ config.hpp           configuração local não versionada
 O `.ino` concentra o fluxo executável para leitura didática. O header de comunicação não inicializa, reconecta ou publica; fornece somente os objetos compartilhados e a identidade MQTT. O módulo do sensor permanece separado porque encapsula uma biblioteca e regras específicas do DHT22. O módulo de display segue o mesmo critério: todo o cálculo de layout fica nele, e o `.ino` apenas entrega os valores já lidos.
 
 A cadência de leitura passou a ser independente do MQTT: o `loop()` lê o sensor a cada 30 s e atualiza o display mesmo sem rede; a publicação acontece apenas quando o cliente MQTT está conectado.
+
+## Identidade na frota
+
+O `device_id` derivado de `ESP.getEfuseMac()` é a única chave de dispositivo do sistema e atravessa todas as camadas sem tradução:
+
+```text
+ESP.getEfuseMac()
+  └─► device_id  esp32-18B4C0D8CBB0
+        ├─► tópico MQTT    fdctmon/esp32-18B4C0D8CBB0/attrs
+        ├─► client-id MQTT esp32-18B4C0D8CBB0
+        ├─► hostname DHCP  esp32-18B4C0D8CBB0
+        ├─► cabeçalho OLED esp32-18B4C0D8CBB0
+        ├─► tag InfluxDB   device_id
+        └─► host Zabbix    esp32-18B4C0D8CBB0
+```
+
+O Node-RED assina `fdctmon/+/attrs`, então uma placa nova entra na ingestão sem alterar o fluxo. Nomes legíveis — sala, rack — ficam no nome visível do host no Zabbix e nos rótulos do Grafana, fora do firmware.
 
 ## Fronteiras de segurança
 

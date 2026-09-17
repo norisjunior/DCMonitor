@@ -6,6 +6,26 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-09-17c] — ESP32 identificável na frota
+
+### Adicionado
+
+- `ESP32/src/ESP32DC.ino` — `WiFi.setHostname()` com o `device_id`, entre `WiFi.mode()` e `WiFi.begin()`: a placa aparece no DHCP pelo próprio identificador
+- `ESP32/src/DC_Display.hpp` — `definirIdentificador()` e `desenharCabecalho()`; o `device_id` ocupa a segunda linha da faixa amarela, abaixo de `FUNDACENTRO`
+- `ESP32/README.md` — seção `Vários dispositivos`
+- `docs/ARCHITECTURE.md` — seção `Identidade na frota`
+
+### Alterado
+
+- `ESP32/src/ESP32DC.ino` — `configurarIdentidade()` sai de `inicializarComunicacao()` e passa para o início de `setup()`: o display precisa do identificador antes de exibir `Iniciando...`
+- `ESP32/include/config.example.hpp` — `VERSAO_FIRMWARE` para `1.3.0`
+
+O contrato MQTT não muda: mesmos tópicos, mesmos campos, mesmo `schema_version`. O `device_id` já era derivado de `ESP.getEfuseMac()`; o que mudou é que ele agora também aparece na rede e na placa, e não só no payload.
+
+`config.hpp` continua sem nada específico de dispositivo — atualize o seu apenas se quiser refletir a versão `1.3.0`.
+
+---
+
 ## [2026-09-17b] — Raspberry Pi fora do escopo
 
 ### Removido
