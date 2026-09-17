@@ -3,24 +3,80 @@
 Este é o roteiro curto para a primeira inicialização após clonar o repositório e
 preencher o arquivo `.env`.
 
-Servidor atual: `10.32.8.115`.
+Servidor atual: `10.32.8.115`. Pasta de instalação: `/IoTPlatform`.
 
-## 1. Entrar na pasta e conferir o ambiente
+## 0. Confirmar que a instalação anterior saiu por inteiro
+
+Containers e imagens são a parte visível. O que sobrevive a uma limpeza
+apressada são os volumes — e um `dcmonitor_node_red_data` antigo faz o Node-RED
+ignorar o fluxo provisionado pela imagem, porque `/data` já existe. O sintoma é
+subir a stack e encontrar o fluxo anterior na UI.
 
 ```bash
-cd ~/dcmonitor
+docker volume ls | grep dcmonitor
+```
+
+Se listar algo e a intenção for mesmo recomeçar:
+
+```bash
+docker volume rm dcmonitor_mosquitto_data dcmonitor_influxdb_data \
+  dcmonitor_influxdb_config dcmonitor_node_red_data dcmonitor_n8n_data \
+  dcmonitor_grafana_data
+```
+
+Isso apaga o histórico do InfluxDB, os fluxos editados na UI e os painéis
+criados à mão. Havendo algo a preservar, faça antes o backup descrito em
+[docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md).
+
+O nome do projeto é fixo no Compose (`name: dcmonitor`), então os volumes se
+chamam `dcmonitor_*` mesmo que a pasta de instalação tenha outro nome.
+
+## 1. Obter o repositório e conferir o ambiente
+
+```bash
+git clone https://github.com/norisjunior/DCMonitor.git /IoTPlatform
+cd /IoTPlatform
+git checkout dcmon2026
+
 docker --version
 docker compose version
 sudo systemctl enable --now docker
 ```
 
-Se o repositório foi clonado em outro local, ajuste o primeiro comando.
+O `git checkout` não é opcional: o branch padrão do repositório é `master`, que
+contém o projeto FIWARE antigo (`FdctMonSys-*`) e não esta plataforma. Confirme
+com `git branch --show-current` antes de seguir.
+
+Se a pasta já existir com o repositório dentro, use `git pull` no lugar do
+`clone`. Qualquer outro caminho serve como pasta de instalação.
 
 ## 2. Validar o `.env`
 
+Copie o exemplo e preencha:
+
+```bash
+cp .env.example .env
+chmod 600 .env
+nano .env
+```
+
+Gere os valores aleatórios com `openssl rand -hex 32` e o hash do Node-RED com:
+
+```bash
+docker run --rm -it --entrypoint node-red nodered/node-red:4.1.11 admin hash-pw
+```
+
+O hash contém `$`; envolva-o em aspas simples no `.env`.
+
+> `MQTT_USERNAME` e `MQTT_PASSWORD` precisam ser os mesmos de
+> `ESP32/include/config.hpp` das placas já gravadas. Trocar a senha MQTT sem
+> regravar o firmware deixa os dispositivos fora do broker, tentando reconectar
+> a cada 5 s, sem nenhum erro no servidor — apenas silêncio nos tópicos.
+
+Depois, valide:
+
 ```bash
 test -f .env || { echo "ERRO: arquivo .env ausente"; exit 1; }
-chmod 600 .env
 
 if grep -n 'TROQUE_' .env; then
   echo "ERRO: ainda existem valores TROQUE_* no .env"
@@ -95,6 +151,10 @@ Credenciais de primeiro acesso:
 O hash bcrypt armazenado no `.env` não é a senha de login do Node-RED.
 
 ## 6. Conferir o Zabbix
+
+Com os volumes recriados do zero, o fluxo e a credencial do InfluxDB são
+aplicados pela imagem: não é preciso importar `flows.json` nem digitar o token
+na UI. Confirme na UI do Node-RED que os nós aparecem com status verde.
 
 O Node-RED, o InfluxDB e o Grafana são provisionados automaticamente, incluindo
 o envio ao Zabbix. O que não é provisionado está do lado do Zabbix: cada
