@@ -23,11 +23,28 @@ constexpr uint8_t PINO_OLED_SDA = 27;
 constexpr uint8_t PINO_OLED_SCL = 26;
 constexpr uint8_t ENDERECO_OLED = 0x3C;
 
-constexpr unsigned long INTERVALO_PUBLICACAO_MS = 30000;
-constexpr unsigned long ATRASO_PRIMEIRA_MEDICAO_MS = 3000;
-constexpr unsigned long INTERVALO_TENTATIVA_WIFI_MS = 10000;
-constexpr unsigned long INTERVALO_TENTATIVA_MQTT_MS = 5000;
+// Ciclo com deep sleep: acorda, mede, publica, desconecta e dorme TEMPO_SONO_S.
+// O periodo real e o sono mais o tempo acordado (tipicamente 3 a 6 s).
+constexpr uint32_t TEMPO_SONO_S = 60;
 
-constexpr char VERSAO_FIRMWARE[] = "1.3.0";
+// Espera do DHT22 apos energizar; aplicada apenas na partida a frio, porque
+// no despertar o sensor seguiu alimentado durante o sono.
+constexpr unsigned long ATRASO_PRIMEIRA_MEDICAO_MS = 2000;
+constexpr unsigned long INTERVALO_MINIMO_DHT_MS = 2100;
+
+// Limites de espera por ciclo. Estourou, a placa dorme e tenta no proximo.
+constexpr unsigned long TEMPO_MAXIMO_WIFI_MS = 10000;
+constexpr uint16_t TEMPO_MAXIMO_MQTT_S = 5;
+constexpr unsigned long TEMPO_MAXIMO_NTP_MS = 3000;
+
+// Watchdog: se o ciclo acordado passar disso, a placa reinicia sozinha.
+constexpr uint32_t LIMITE_CICLO_ACORDADO_S = 30;
+
+// Horario mostrado no display. Em rede sem internet, use o NTP interno.
+constexpr char NTP_SERVIDOR[] = "pool.ntp.org";
+constexpr char FUSO_HORARIO[] = "<-03>3";  // America/Sao_Paulo, sem horario de verao
+constexpr uint32_t CICLOS_ENTRE_SINCRONIZACOES = 60;
+
+constexpr char VERSAO_FIRMWARE[] = "1.4.0";
 
 }  // namespace Config

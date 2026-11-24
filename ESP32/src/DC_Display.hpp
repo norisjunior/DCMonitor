@@ -40,6 +40,15 @@ void definirIdentificador(const char *id) {
   snprintf(identificador, sizeof(identificador), "%s", id);
 }
 
+// Horario da medicao (HH:MM). Com deep sleep, a tela segue acesa com a ultima
+// imagem enquanto a placa dorme; o horario diz a quem olha de quando ela e.
+// "--:--" indica relogio ainda nao sincronizado por NTP.
+char horario[6] = "--:--";
+
+void definirHorario(const char *hhmm) {
+  snprintf(horario, sizeof(horario), "%s", hhmm);
+}
+
 int16_t larguraTexto(const char *texto, uint8_t tamanho) {
   return static_cast<int16_t>(strlen(texto)) * LARGURA_CHAR * tamanho;
 }
@@ -88,18 +97,24 @@ bool inicializar(uint8_t pinoSda, uint8_t pinoScl, uint8_t endereco) {
   Wire.begin(pinoSda, pinoScl);
   disponivel = tela.begin(SSD1306_SWITCHCAPVCC, endereco);
 
+  // Limpa so o buffer local, sem enviar a tela: no despertar do deep sleep o
+  // painel continua mostrando a ultima leitura ate o proximo desenho.
   if (disponivel) {
     tela.setTextColor(SSD1306_WHITE);
     tela.clearDisplay();
-    tela.display();
   }
 
   return disponivel;
 }
 
-// Titulo na primeira linha da faixa amarela, identificador na segunda.
+// Primeira linha da faixa amarela: titulo a esquerda e horario a direita
+// (66 px + 30 px cabem nos 128 px). Segunda linha: identificador.
 void desenharCabecalho() {
-  escreverCentralizado("FUNDACENTRO", 0, LARGURA_TELA, 0, 1);
+  tela.setTextSize(1);
+  tela.setCursor(0, 0);
+  tela.print("FUNDACENTRO");
+  tela.setCursor(LARGURA_TELA - larguraTexto(horario, 1), 0);
+  tela.print(horario);
 
   if (identificador[0] != '\0') {
     escreverCentralizado(identificador, 0, LARGURA_TELA, ALTURA_CHAR, 1);
