@@ -2,6 +2,16 @@
 
 > Entradas mais recentes primeiro.
 
+## 2026-11-24 — ESP32 em deep sleep com transmissão a cada minuto
+
+**Decisão:** O firmware 1.4.0 passa a trabalhar em ciclos: acorda, lê o DHT22, conecta ao Wi-Fi, publica `online` retido e a telemetria, desconecta com `DISCONNECT` limpo, atualiza o display e dorme 60 s fixos (`TEMPO_SONO_S`). Cada espera de rede tem limite e um watchdog de tarefa reinicia a placa se o ciclo acordado passar de 30 s. O cabeçalho do display ganha o horário da medição, sincronizado por NTP. Substitui D-015 (publicação a cada 30 s) e redefine RF-007.
+
+**Justificativa:** O deep sleep reduz o consumo e o aquecimento do módulo, e a cadência de um minuto é suficiente para a inércia térmica de uma sala de datacenter. O sono fixo, em vez de um período compensado pelo tempo acordado, mantém o código simples; a variação de 3 a 6 s no período não afeta painéis nem alertas. A desconexão limpa evita que o Last Will publique `offline` a cada sono, o que tornaria o tópico de status ruído. Como o OLED segue alimentado e mantém a última imagem durante o sono, o horário na tela é o que permite a quem está no rack reconhecer um valor antigo; o watchdog garante que uma placa travada não fique acordada exibindo leitura velha.
+
+**Alternativas descartadas:** Publicar `sleeping` antes de dormir, que faz o status oscilar a cada minuto e muda o contrato do tópico; remover o tópico de status; período fixo compensando o tempo acordado; desligar o display durante o sono, que deixaria a tela apagada quase o tempo todo; data completa no cabeçalho, que não cabe ao lado de `FUNDACENTRO` na fonte atual.
+
+**Consequências:** O volume cai de 2.880 para cerca de 1.400 mensagens/dia por placa. O status retido fica `online` mesmo com a placa desligada; a disponibilidade passa a depender de gatilho `nodata` no Zabbix (sugestão: alguns minutos, acima de dois ciclos). A primeira leitura após energizar leva ~2 s a mais pela estabilização do DHT22. Sem acesso ao `NTP_SERVIDOR`, o horário aparece como `--:--` até a primeira sincronização; em rede sem internet é preciso apontar para o NTP interno. O `config.hpp` local precisa receber as constantes novas do `config.example.hpp`.
+
 ## 2026-09-17 — Identidade da frota derivada do chip, nomes legíveis no servidor
 
 **Decisão:** Todo ESP32 recebe o mesmo binário. O `device_id` continua derivado de `ESP.getEfuseMac()` e passa a ser também o hostname de rede (`WiFi.setHostname()`) e o cabeçalho do display. Nomes legíveis para o NOC — sala, rack, andar — ficam no nome visível do host no Zabbix e nos rótulos do Grafana, nunca no firmware.

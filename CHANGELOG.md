@@ -6,6 +6,32 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-11-24] — ESP32 com deep sleep e transmissão a cada minuto
+
+### Adicionado
+
+- `ESP32/src/ESP32DC.ino` — ciclo completo em `setup()` terminando em `esp_deep_sleep_start()` com despertar por timer de 60 s; `loop()` fica vazio
+- `ESP32/src/ESP32DC.ino` — watchdog de tarefa (`esp_task_wdt`) que reinicia a placa se o ciclo acordado passar de 30 s
+- `ESP32/src/ESP32DC.ino` — sincronização NTP na primeira vez e a cada 60 ciclos, com o contador em `RTC_DATA_ATTR`
+- `ESP32/src/ESP32DC.ino` — segunda tentativa de leitura do DHT22 após 2,1 s
+- `ESP32/src/DC_Display.hpp` — `definirHorario()`; o horário da medição (`HH:MM`) aparece à direita de `FUNDACENTRO`
+- `ESP32/README.md` — seção `Ciclo com deep sleep`
+
+### Alterado
+
+- `ESP32/src/ESP32DC.ino` — uma sessão MQTT por ciclo, com `DISCONNECT` limpo; o status retido segue `online` e o Last Will só dispara em falha no meio do ciclo
+- `ESP32/src/ESP32DC.ino` — esperas de Wi-Fi (10 s), MQTT (5 s) e NTP (3 s) limitadas; ao estourar, a placa dorme e tenta no próximo ciclo
+- `ESP32/src/DC_Display.hpp` — `inicializar()` não limpa mais o painel, que mantém a última leitura até ser redesenhado; leitura inválida mostra `Falha no DHT22`
+- `ESP32/include/config.example.hpp` — `INTERVALO_PUBLICACAO_MS`, `INTERVALO_TENTATIVA_WIFI_MS` e `INTERVALO_TENTATIVA_MQTT_MS` substituídos por `TEMPO_SONO_S`, limites de espera, watchdog e NTP; `VERSAO_FIRMWARE` para `1.4.0`
+- `PROJECT_BRIEF.md` — RF-001, RF-007 e RNF-002; D-015 substituída por D-022
+- `docs/ARCHITECTURE.md`, `docs/EMBEDDED_IOT_GUIDELINES.md`, `docs/REQUIREMENTS.md`, `docs/decision-log.md`
+
+O payload da telemetria não muda: mesmos tópicos, campos e `schema_version`.
+
+**Ação necessária:** copie para o seu `include/config.hpp` o bloco de tempos do `config.example.hpp`; sem ele o firmware não compila. No Zabbix, ajuste os gatilhos de ausência de dados para a nova cadência e use `nodata` para detectar placa fora do ar, já que o status retido permanece `online`.
+
+---
+
 ## [2026-09-17c] — ESP32 identificável na frota
 
 ### Adicionado

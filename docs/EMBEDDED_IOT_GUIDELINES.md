@@ -11,13 +11,13 @@
 
 - Configuração sensível em `ESP32/include/config.hpp`, ignorada pelo Git.
 - `ESP32DC.ino` mantém a `struct` e executa sensor, Wi-Fi, MQTT e JSON; `DC_Ambiente.hpp` encapsula o DHT22 e `DC_Comunicacao.hpp` mantém clientes, identidade e tópicos.
-- O endereço IP recebido pelo ESP32 é registrado uma vez a cada conexão Wi-Fi.
-- Publicação a cada 30 s usando aritmética segura com `millis()`.
-- A conexão Wi-Fi é iniciada uma vez com `WiFi.begin()`; estados de falha usam
-  `WiFi.reconnect()` a cada 10 s, sem interromper `WL_IDLE_STATUS`.
-- Tentativas MQTT são não bloqueantes e ocorrem a cada 5 s.
-- Last Will retido no tópico de status.
-- Leitura DHT22 inválida não é publicada.
+- O endereço IP recebido pelo ESP32 é registrado a cada ciclo.
+- Ciclo com deep sleep de 60 s (`TEMPO_SONO_S`); todo o trabalho fica em `setup()`.
+- Esperas de Wi-Fi, MQTT e NTP têm limite; ao estourar, a placa dorme e tenta no próximo ciclo.
+- Watchdog de tarefa (`esp_task_wdt`) reinicia a placa se o ciclo acordado passar de 30 s.
+- Estado que precisa sobreviver ao sono usa `RTC_DATA_ATTR`; o fuso é reaplicado a cada boot.
+- Last Will retido no tópico de status; a sessão termina com `DISCONNECT` limpo.
+- Leitura DHT22 inválida tem uma segunda tentativa e, persistindo, não é publicada.
 - Buffer MQTT/JSON de 256 bytes, maior que o payload documentado.
 - Logs `[INFO]`, `[WARN]` e `[ERROR]`, sem credenciais.
 - Telemetria QoS 0 e sem fila offline, decisão documentada no log.

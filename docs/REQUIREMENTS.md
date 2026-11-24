@@ -10,14 +10,16 @@ Substituir PostgreSQL/Flask por uma plataforma de séries temporais no Oracle Li
 
 ### HU-001 — Telemetria do ESP32
 
-Como operador do NOC, quero receber temperatura, umidade e índice de calor a cada 30 segundos para acompanhar o ambiente do datacenter.
+Como operador do NOC, quero receber temperatura, umidade e índice de calor a cada minuto para acompanhar o ambiente do datacenter.
 
 - DHT22 conectado ao GPIO 25 e alimentado segundo a especificação do módulo.
 - Tópico `fdctmon/{device_id}/attrs`.
 - JSON com `schema_version`, `device_id`, `sensor`, `firmware_version`, `temp`, `umid`, `ic` e `rssi`.
 - Valores em °C e %UR, arredondados em uma casa decimal.
 - Leitura inválida é registrada no serial e não é publicada.
-- Wi-Fi/MQTT reconectam sem bloquear indefinidamente o loop.
+- Wi-Fi/MQTT/NTP têm espera limitada por ciclo; o ciclo acordado é encerrado pelo watchdog após 30 s.
+- Entre ciclos o ESP32 fica em deep sleep por 60 s.
+- O display mostra o horário da medição, para que valores antigos sejam reconhecíveis.
 
 ### HU-003 — Persistência de séries temporais
 
@@ -89,7 +91,7 @@ Exemplo ESP32:
 
 O firmware 1.2.0 envia todos os campos. Eles seguem opcionais na validação para que uma versão anterior, ou um dispositivo em recuperação, continue gravando temperatura e umidade.
 
-Status do dispositivo: `fdctmon/{device_id}/status`, payload retido `online`/`offline`.
+Status do dispositivo: `fdctmon/{device_id}/status`, payload retido `online` a cada despertar; `offline` somente via Last Will, quando a sessão cai sem `DISCONNECT`. Com deep sleep, a ausência do dispositivo é detectada pela falta de telemetria.
 
 ## Requisitos não funcionais
 

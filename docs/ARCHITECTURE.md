@@ -21,7 +21,7 @@ escuta não é usado como hostname público.
 
 | Componente | Responsabilidade |
 |---|---|
-| ESP32 | Ler DHT22, calcular índice de calor, reportar RSSI, exibir medições e `device_id` no OLED, publicar a cada 30 s e anunciar status MQTT |
+| ESP32 | Ler DHT22, calcular índice de calor, reportar RSSI, exibir medições, horário e `device_id` no OLED, publicar a cada ~60 s com deep sleep entre ciclos e anunciar status MQTT |
 | Mosquitto | Autenticar dispositivos e distribuir mensagens aos consumidores internos |
 | Node-RED | Validar o contrato mínimo, gravar no InfluxDB e alimentar os itens trapper do Zabbix |
 | InfluxDB | Armazenar séries temporais por 90 dias |
@@ -32,16 +32,16 @@ escuta não é usado como hostname público.
 ## Organização do firmware ESP32
 
 ```text
-ESP32DC.ino          struct + setup/loop + Wi-Fi/MQTT + JSON
+ESP32DC.ino          struct + ciclo em setup() + Wi-Fi/MQTT/NTP + JSON + deep sleep
 DC_Ambiente.hpp      DHT22 + validação + índice de calor
 DC_Comunicacao.hpp   clientes Wi-Fi/MQTT + identidade/tópicos
-DC_Display.hpp       OLED SSD1306 + layout das caixas
+DC_Display.hpp       OLED SSD1306 + cabeçalho com horário + layout das caixas
 config.hpp           configuração local não versionada
 ```
 
 O `.ino` concentra o fluxo executável para leitura didática. O header de comunicação não inicializa, reconecta ou publica; fornece somente os objetos compartilhados e a identidade MQTT. O módulo do sensor permanece separado porque encapsula uma biblioteca e regras específicas do DHT22. O módulo de display segue o mesmo critério: todo o cálculo de layout fica nele, e o `.ino` apenas entrega os valores já lidos.
 
-A cadência de leitura passou a ser independente do MQTT: o `loop()` lê o sensor a cada 30 s e atualiza o display mesmo sem rede; a publicação acontece apenas quando o cliente MQTT está conectado.
+Desde o firmware 1.4.0 o dispositivo trabalha em ciclos com deep sleep: acorda, lê o sensor, conecta, publica, desconecta de forma limpa, atualiza o display e dorme 60 s. Cada espera de rede tem limite e um watchdog encerra ciclos travados. O display é atualizado mesmo sem rede e mantém a imagem durante o sono, com o horário da medição no cabeçalho. A disponibilidade da placa passa a ser inferida pela chegada da telemetria, não pelo tópico de status.
 
 ## Identidade na frota
 

@@ -5,7 +5,7 @@
 - **Nome do projeto:** `FdctMonSys / DCMonitor`
 - **Responsável / cliente:** `Norisvaldo Ferraz Junior`
 - **Problema a resolver:** Monitorar temperatura e umidade do datacenter com dispositivos IoT, armazenar séries temporais localmente, exibir os dados no NOC e encaminhar medições ao Zabbix.
-- **Resultado esperado:** Uma stack Docker reproduzível no Oracle Linux 9 com Mosquitto, Node-RED, InfluxDB, Grafana e n8n; ESP32 publicando DHT22 a cada 30 segundos; dashboard Grafana e atualização do Zabbix.
+- **Resultado esperado:** Uma stack Docker reproduzível no Oracle Linux 9 com Mosquitto, Node-RED, InfluxDB, Grafana e n8n; ESP32 publicando DHT22 a cada minuto, em deep sleep entre medições; dashboard Grafana e atualização do Zabbix.
 - **Usuários-alvo:** NOC e equipes de suporte e sustentação de infraestrutura.
 
 ## 2. Stack
@@ -25,19 +25,19 @@
 
 | ID | Requisito | Prioridade | Critério de aceite |
 |---|---|---|---|
-| RF-001 | ESP32 lê DHT22 e publica temperatura, umidade e índice de calor via MQTT a cada 30 s | Alta | Payload JSON válido visível em `fdctmon/{device_id}/attrs`, com `device_id`, `temp`, `umid`, `ic`, `sensor=DHT22` e `schema_version=1` |
+| RF-001 | ESP32 lê DHT22 e publica temperatura, umidade e índice de calor via MQTT a cada ~60 s, em deep sleep entre ciclos | Alta | Payload JSON válido visível em `fdctmon/{device_id}/attrs`, com `device_id`, `temp`, `umid`, `ic`, `sensor=DHT22` e `schema_version=1` |
 | RF-003 | Node-RED recebe MQTT, valida e grava no InfluxDB local | Alta | Cada mensagem válida gera pontos na measurement `ambiente`; payload inválido é rejeitado e aparece nos logs |
 | RF-004 | Grafana exibe temperatura, umidade, índice de calor e histórico | Alta | Datasource InfluxDB e dashboard `DCMonitor - Ambiente` são provisionados ao subir a stack |
 | RF-005 | Node-RED envia a telemetria validada ao Zabbix | Alta | Itens trapper `temp`, `umid`, `headindex` e `rssi` do host homônimo ao `device_id` são atualizados; a ausência de `ic`/`rssi` não interrompe os demais itens |
 | RF-006 | Serviços sobem no Oracle Linux 9 com um único Compose | Alta | `docker compose up -d --build` inicia os cinco serviços e `docker compose ps` indica serviços saudáveis |
-| RF-007 | Estado do ESP32 é publicado via MQTT Last Will | Média | `fdctmon/{device_id}/status` contém `online` quando conectado e `offline` após perda da sessão MQTT |
+| RF-007 | Estado do ESP32 é publicado no tópico de status | Média | `fdctmon/{device_id}/status` recebe `online` retido a cada despertar; o Last Will `offline` só é publicado se a sessão cair sem `DISCONNECT`; ausência da placa é detectada pela falta de telemetria |
 
 ## 4. Requisitos não funcionais
 
 | ID | Requisito | Critério de aceite |
 |---|---|---|
 | RNF-001 | Segurança de segredos | Nenhuma senha/token no código; `.env` e `ESP32/include/config.hpp` ignorados pelo Git; exemplos contêm somente placeholders |
-| RNF-002 | Confiabilidade do dispositivo | Firmware não bloqueia aguardando rede; tenta reconectar Wi-Fi e MQTT periodicamente; leitura DHT22 inválida não é publicada |
+| RNF-002 | Confiabilidade do dispositivo | Esperas de Wi-Fi, MQTT e NTP têm limite por ciclo; watchdog encerra ciclos acordados acima de 30 s; leitura DHT22 inválida não é publicada |
 | RNF-003 | Persistência | Volumes Docker preservam Mosquitto, InfluxDB, Node-RED, n8n e Grafana após reinício |
 | RNF-004 | Retenção | Bucket de telemetria mantém 90 dias (`2160h`) por padrão |
 | RNF-005 | Observabilidade | Cada etapa ESP32 → MQTT → Node-RED → InfluxDB/Zabbix → Grafana pode ser verificada separadamente por comando ou UI |
@@ -53,13 +53,14 @@
 | D-012 | Node-RED valida a telemetria, persiste no InfluxDB e alimenta o Zabbix | Uma única validação serve às duas saídas; o n8n fica livre para as regras de notificação |
 | D-013 | Envio ao Zabbix usa o nó trapper do Node-RED | Não há processo externo nem duplicação de consumidor MQTT; o n8n mantém `flow_zabbix.json` como contingência |
 | D-014 | ESP32 usa somente DHT22 nesta fase | Motor, LED, acelerômetro e outros sensores do protótipo de aula são removidos |
-| D-015 | ESP32 publica a cada 30 segundos | DHT22 respeita sua cadência e o volume esperado é de 2.880 mensagens/dia |
+| D-015 | ESP32 publica a cada 30 segundos | Substituída por D-022 em 2026-11-24 |
 | D-016 | Serviços escutam em `0.0.0.0`; clientes usam IP ou DNS | O IP atual é `10.32.8.115`; DNS futuro não exige trocar o bind dos containers |
 | D-017 | Execução da comunicação fica no `.ino` | `DC_Comunicacao.hpp` mantém somente estado dos clientes e configuração de identidade/tópicos |
 | D-018 | `WiFi.begin()` executa uma vez; falhas usam `WiFi.reconnect()` | Tentativas em andamento não são reiniciadas; estados terminais respeitam o intervalo de 10 s |
 | D-019 | O host no Zabbix é o `device_id` do dispositivo | Cada dispositivo precisa de um host homônimo no Zabbix; não há host fixo por sala |
 | D-020 | O Raspberry Pi sai do escopo; o ESP32 é o único dispositivo | `raspberry/` deixa o repositório; `ic`, `rssi` e `sensor` seguem opcionais na validação por robustez, não por compatibilidade |
 | D-021 | Um único binário para toda a frota; identidade derivada do chip | Gravar uma placa nova não exige editar `config.hpp`; nomes legíveis ficam no Zabbix e no Grafana, não no firmware |
+| D-022 | ESP32 em deep sleep de 60 s entre ciclos; sessão MQTT por ciclo com desconexão limpa | Cerca de 1.400 mensagens/dia por placa; status retido fica `online`; queda detectada por `nodata` no Zabbix; display mostra o horário da medição |
 
 ## 6. Restrições
 
