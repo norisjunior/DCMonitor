@@ -33,7 +33,7 @@ mas torna obrigatória a restrição de origem no `firewalld`.
 | Grafana 3000 | senha administrativa, signup desativado e acesso NOC/gestão |
 | InfluxDB 8086 | token e firewall de gestão |
 
-O MQTT das placas usa TLS (porta 8883). As interfaces HTTP (1880, 3000, 5678, 8086) ainda não têm TLS: o controle compensatório é rede interna segmentada e firewall. Se esse tráfego cruzar rede não confiável, deve receber TLS por proxy reverso.
+O MQTT das placas usa TLS (porta 8883) e o Node-RED serve a 1880 só em HTTPS, com certificado da mesma CA. As demais interfaces HTTP (3000, 5678, 8086) ainda não têm TLS: o controle compensatório é rede interna segmentada e firewall. Se esse tráfego cruzar rede não confiável, deve receber TLS por proxy reverso.
 
 `0.0.0.0` é somente endereço de escuta. Ele não deve ser usado em URL pública,
 registro DNS, configuração MQTT do ESP32 ou webhook do n8n.
@@ -55,7 +55,7 @@ Limites:
 
 - A senha fica na flash da placa, legível por quem tiver acesso físico: a flash encryption do ESP32 não está habilitada.
 - A placa nunca verifica a validade (datas) do certificado do broker, nem com NTP: o mbedTLS do framework do ESP32 é compilado sem verificação de datas (`CONFIG_MBEDTLS_HAVE_TIME_DATE` desligado). Ela confere só a cadeia e o nome. Não há revogação de certificado (CRL). Um certificado de servidor vencido, ou com a chave vazada, continua aceito pelas placas até a troca da CA, que exige regravar todas elas. Se `pki/ca/ca.key` vazar, o mesmo vale.
-- A página `/admin/` usa HTTP Basic sem TLS, e a senha gerada trafega em claro na resposta do `POST` e do `PUT` em `/api/credenciais/:id`. Por isso a porta 1880 deve ficar só na rede de gestão.
+- A página `/admin/` usa HTTP Basic dentro de HTTPS: o login e a senha MQTT gerada trafegam cifrados. A porta 1880 continua restrita à rede de gestão, pela força bruta descrita adiante.
 - Com `per_listener_settings false`, a autenticação é a mesma nas duas portas: o login `MQTT_ADMIN_USER` também é aceito na 8883, publicada no host. Por isso a senha forte exigida pelo `iniciar.sh` e o firewall limitando a 8883 às redes das placas.
 - Conexões com client-id repetido derrubam a sessão anterior, mas só quem tem uma credencial válida chega a esse ponto.
 
@@ -67,8 +67,8 @@ Como defesa adicional, o Node-RED descarta medição cujo `device_id` do payload
 
 - Login próprio, separado do editor: `CADASTRO_ADMIN_USER` e `CADASTRO_ADMIN_PASSWORD_HASH` protegem a página (`httpStaticAuth`) e as APIs de cadastro e de credenciais (`httpNodeAuth`). Quem cadastra placas não edita fluxos, mas gera, troca e revoga senhas MQTT. Sem o hash, o Node-RED não sobe.
 - `httpNodeAuth` vale para todo nó `http in`: qualquer endpoint HTTP criado no futuro herda esse mesmo login.
-- O login é HTTP Basic sem TLS nesta fase: a senha de login trafega apenas codificada, e a senha MQTT gerada trafega em claro na resposta. Vale o controle compensatório de rede de gestão e firewall.
-- Força bruta e indisponibilidade: o Node-RED confere a senha com bcrypt síncrono e não limita tentativas. Uma rajada de logins errados a partir da rede trava o processo, e com ele a ingestão MQTT e o envio ao Zabbix. Mitigação: porta 1880 aberta só para a rede de gestão, usuário diferente do padrão `cadastro` e, quando houver HTTPS, proxy reverso com limite de requisições.
+- O login é HTTP Basic sobre HTTPS (porta 1880, certificado da CA do DCMonitor, que precisa estar instalada nos navegadores; `docs/DEPLOY_PROD.md`).
+- Força bruta e indisponibilidade: o Node-RED confere a senha com bcrypt síncrono e não limita tentativas. Uma rajada de logins errados a partir da rede trava o processo, e com ele a ingestão MQTT e o envio ao Zabbix. Mitigação: porta 1880 aberta só para a rede de gestão, usuário diferente do padrão `cadastro` e, se necessário, proxy reverso com limite de requisições.
 - XSS: a página compartilha a origem com o editor do Node-RED. Todo texto vindo do servidor (nomes, locais, `device_id`) entra no DOM por `textContent`/`value`, nunca por `innerHTML`. Como defesa em profundidade, a página e a API respondem com `Content-Security-Policy` (`script-src 'self'`, script em `admin/app.js`, sem script inline), `frame-ancestors 'none'` e `X-Frame-Options: DENY` contra clickjacking, e `X-Content-Type-Options: nosniff`.
 - CSRF: o Node-RED não tem CORS configurado, e a gravação usa `PUT` com corpo JSON, que exige preflight em requisição de outra origem; sem resposta CORS, o navegador não envia o `PUT`. Formulários HTML não geram `PUT`. Outra origem também não lê a resposta do `GET`.
 - Credenciais: todas as rotas de `/api/credenciais` exigem o cabeçalho `X-DCMonitor: 1` e respondem 403 sem ele. A página envia o cabeçalho; numa requisição de outra origem, um cabeçalho próprio exige preflight CORS, que o Node-RED não autoriza. Assim outro site não gera, troca nem revoga senhas com o login Basic guardado no navegador.
@@ -98,7 +98,7 @@ Como defesa adicional, o Node-RED descarta medição cujo `device_id` do payload
 2. Limitar portas por sub-rede no firewalld.
 3. Criar usuários/senhas fortes e únicas.
 4. Confirmar que a porta 1884 não está publicada por `docker compose ps` e que a 1883 está fechada no firewall.
-5. Guardar `pki/ca/ca.key` em cofre e incluir `mqtt-seguranca/` no backup.
+5. Tirar `pki/ca/ca.key` do servidor, cifrada, conforme `docs/DEPLOY_PROD.md` ("Chave da CA"), e incluir `mqtt-seguranca/` no backup.
 6. Limitar a 8883 às redes das placas: o login `MQTT_ADMIN_USER` também é aceito nela.
 7. Usar senhas diferentes para o editor do Node-RED e para a página de cadastro, e um `CADASTRO_ADMIN_USER` diferente do padrão.
 8. Executar auditoria n8n e revisar imagens/dependências.
@@ -106,5 +106,4 @@ Como defesa adicional, o Node-RED descarta medição cujo `device_id` do payload
 
 Pendências registradas para decisão do responsável:
 
-- TLS na porta 1880 (página `/admin/` e editor do Node-RED): a senha MQTT gerada trafega em claro na resposta HTTP. Até lá, a 1880 fica só na rede de gestão.
-- Chave da CA sem senha no servidor: recomenda-se, depois de emitir o certificado, guardar `pki/ca/ca.key` fora do servidor. Antes de uma renovação, devolva a chave para `pki/ca/`: sem ela, `scripts/gerar_certificados.sh` cria uma CA nova, o que exige regravar todas as placas.
+- Chave da CA sem senha no servidor enquanto estiver lá: o procedimento "Chave da CA" de `docs/DEPLOY_PROD.md` a tira do servidor, cifrada, e a devolve só para renovar. Sem a chave, `scripts/gerar_certificados.sh` se recusa a rodar.

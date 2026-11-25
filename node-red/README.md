@@ -6,7 +6,7 @@ O fluxo `flows.json` e o `settings.js` são copiados pela imagem para o volume `
 |---|---|
 | `flows.json` | abas "DCMonitor - MQTT para InfluxDB e Zabbix", "Cadastro de dispositivos" e "Credenciais MQTT" |
 | `flows_cred.json` | referências `${INFLUXDB_TOKEN}`, `${MQTT_ADMIN_USER}` e `${MQTT_ADMIN_PASSWORD}`, sem segredo |
-| `settings.js` | login do editor, login da página de cadastro, `httpStatic` |
+| `settings.js` | HTTPS da porta 1880, login do editor, login da página de cadastro, `httpStatic` |
 | `admin/index.html`, `admin/app.js` | página de cadastro e credenciais, copiada para `/opt/dcmonitor/admin` na imagem |
 | `Dockerfile` | instala os nós extras e copia os arquivos acima |
 
@@ -47,11 +47,17 @@ O fluxo versionado não contém endereços nem segredos. O Node-RED substitui `$
 | `ZABBIX_SERVER`, `ZABBIX_PORT` | destino do nó `Enviar ao Zabbix` |
 | `ZABBIX_SERVER_2` | destino do nó `Enviar ao Zabbix 2` (mesma `ZABBIX_PORT`); padrão `10.32.8.69` no Compose; definida vazia no `.env`, desliga |
 | `MQTT_ADMIN_USER`, `MQTT_ADMIN_PASSWORD` | login do nó de configuração `Mosquitto interno`, via `flows_cred.json`; `MQTT_ADMIN_USER` também é omitido da lista de credenciais |
-| `CADASTRO_ADMIN_USER`, `CADASTRO_ADMIN_PASSWORD_HASH` | login da página `/admin/` e da API `/api/cadastro`, em `settings.js`; sem o hash o Node-RED não sobe |
+| `CADASTRO_ADMIN_USER`, `CADASTRO_ADMIN_PASSWORD_HASH` | login da página `/admin/` e das APIs `/api/cadastro` e `/api/credenciais`, em `settings.js`; sem o hash o Node-RED não sobe |
+| `NODERED_CERTS_DIR` (Compose) | diretório do host com `server.key`, `server.crt` e `ca.crt` do HTTPS, montado em `/data/tls`; sem ele o Node-RED não sobe |
+| `NODE_EXTRA_CA_CERTS` (Compose) | faz o Node.js confiar na CA do DCMonitor; usado pelo healthcheck em HTTPS |
 
 O host dos itens trapper não vem do ambiente: cada medição é enviada ao host cujo nome é igual ao `device_id` do dispositivo. O campo `Default hostname` do nó fica vazio de propósito — ele só valeria para itens enviados sem host.
 
 `flows_cred.json` guarda apenas os textos `${INFLUXDB_TOKEN}`, `${MQTT_ADMIN_USER}` e `${MQTT_ADMIN_PASSWORD}`. O Node-RED aceita o arquivo em texto puro, resolve as variáveis a cada início e regrava o arquivo cifrado com `NODE_RED_CREDENTIAL_SECRET`. Token e senha não ficam no repositório nem na imagem.
+
+## HTTPS
+
+O Node-RED serve a porta 1880 só em HTTPS (`https` no `settings.js`), com o certificado emitido por `scripts/gerar_certificados.sh` em `pki/node-red/`. O certificado é relido a cada 12 h (`httpsRefreshInterval`), então uma renovação vale sem reiniciar. Os navegadores precisam confiar na CA do DCMonitor (`docs/DEPLOY_PROD.md`, "Confiar na CA nos navegadores").
 
 ## Modelo gravado
 
@@ -79,7 +85,7 @@ A aba "Cadastro de dispositivos" mantém o local e o nome amigável de cada plac
 - `PUT /api/cadastro` valida o corpo, exige a mesma `revisao` em memória (409 se outra janela salvou antes; 503 se o cadastro não carregou) e passa ao nó `Gravar e aplicar`. Esse nó é síncrono: confere a revisão de novo (duas gravações simultâneas não se sobrepõem), grava `dispositivos.json.tmp`, copia o arquivo atual para `dispositivos.json.bak`, renomeia o `.tmp` e só então aplica o cadastro. Falha de gravação responde 500 e não altera memória nem arquivo. O nó usa o módulo `fs` (aba Setup), habilitado por `functionExternalModules` no `settings.js`.
 - Regras de validação: código de local em slug (`a-z`, `0-9`, hífen, até 32 caracteres, `sem-local` reservado), nome de local até 48 caracteres, nome de dispositivo até 64, local referenciado precisa existir, no máximo 200 locais e 2000 dispositivos.
 
-A página `http://SERVIDOR:1880/admin/` (`admin/index.html` e `admin/app.js`) é servida pelo `httpStatic` do `settings.js`, com cabeçalhos de segurança (CSP, anti-frame, nosniff) aplicados também à API. Página e API usam o login `CADASTRO_ADMIN_USER`/`CADASTRO_ADMIN_PASSWORD_HASH` (`httpStaticAuth` e `httpNodeAuth`), separado do editor. A página atualiza a situação das placas a cada 30 s.
+A página `https://SERVIDOR:1880/admin/` (`admin/index.html` e `admin/app.js`) é servida pelo `httpStatic` do `settings.js`, com cabeçalhos de segurança (CSP, anti-frame, nosniff) aplicados também à API. Página e API usam o login `CADASTRO_ADMIN_USER`/`CADASTRO_ADMIN_PASSWORD_HASH` (`httpStaticAuth` e `httpNodeAuth`), separado do editor. A página atualiza a situação das placas a cada 30 s.
 
 A tabela da página também tem a coluna "Credencial MQTT", descrita abaixo.
 

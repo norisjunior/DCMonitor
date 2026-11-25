@@ -75,10 +75,12 @@ repositório:
 sudo bash scripts/gerar_certificados.sh
 ```
 
-O certificado sai com o nome `vplviot.ctn.fundacentro.intra` e o IP
+O script emite dois certificados, um para o Mosquitto (8883) e outro para o
+Node-RED (HTTPS na 1880), com o nome `vplviot.ctn.fundacentro.intra` e o IP
 `10.32.8.115`. Para outros valores, use `MQTT_TLS_NOMES` e `MQTT_TLS_IPS` (veja
-[docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md)). Guarde uma cópia de
-`pki/ca/ca.key` em cofre: é o segredo mais sensível da instalação.
+[docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md)). Ao terminar a instalação, tire
+`pki/ca/ca.key` do servidor seguindo "Chave da CA" no mesmo documento: é o
+segredo mais sensível da instalação.
 
 ## 3. Preparar os diretórios do host
 
@@ -198,8 +200,8 @@ sudo firewall-cmd --reload
 A porta 1883 não é mais usada; se foi liberada antes, feche-a com
 `sudo firewall-cmd --permanent --remove-port=1883/tcp`. Em produção, restrinja
 `1880`, `3000`, `5678` e `8086` à rede de gestão e `8883` e o NTP às redes das
-placas. A página de cadastro usa a mesma porta `1880` e mostra as senhas MQTT
-geradas, sem TLS. Não exponha essas portas diretamente à Internet.
+placas. A página de cadastro usa a mesma porta `1880`, em HTTPS, e mostra as
+senhas MQTT geradas. Não exponha essas portas diretamente à Internet.
 
 As placas pegam a hora do próprio servidor. Em `/etc/chrony.conf`, acrescente:
 
@@ -223,11 +225,16 @@ remova-a. Detalhes em [docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md).
 | Serviço | Endereço |
 |---|---|
 | Grafana | `http://10.32.8.115:3000` |
-| Node-RED | `http://10.32.8.115:1880` |
-| Cadastro de dispositivos e credenciais MQTT | `http://10.32.8.115:1880/admin/` |
+| Node-RED | `https://10.32.8.115:1880` |
+| Cadastro de dispositivos e credenciais MQTT | `https://10.32.8.115:1880/admin/` |
 | n8n | `http://10.32.8.115:5678` |
 | InfluxDB | `http://10.32.8.115:8086` |
 | MQTT das placas (TLS) | `10.32.8.115:8883` |
+
+O Node-RED só responde em HTTPS. Para o navegador não mostrar aviso, instale
+`pki/ca/ca.crt` (o certificado público da CA) no computador que acessa a página,
+conforme "Confiar na CA nos navegadores" em
+[docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md).
 
 Credenciais de primeiro acesso:
 
@@ -269,7 +276,7 @@ docker compose exec mosquitto sh -c \
   'mosquitto_sub -p 1884 -u "$MQTT_ADMIN_USER" -P "$MQTT_ADMIN_PASSWORD" -t "fdctmon/#" -v'
 ```
 
-Crie uma credencial de teste: abra `http://10.32.8.115:1880/admin/`, entre com
+Crie uma credencial de teste: abra `https://10.32.8.115:1880/admin/`, entre com
 o login do cadastro, digite o ID fictício `esp32-0000000000A1` em "Placa nova:
 ID mostrado na serial" e clique em "Gerar senha". A página só aceita IDs no
 formato do firmware, `esp32-` seguido de 12 dígitos hexadecimais maiúsculos. A página mostra uma vez a linha

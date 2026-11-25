@@ -38,11 +38,12 @@ sudo bash scripts/gerar_certificados.sh
 |---|---|
 | `pki/ca/ca.key`, `pki/ca/ca.crt` | CA, 10 anos; a chave é o segredo mais sensível da instalação |
 | `pki/mosquitto/` | `ca.crt`, `server.crt` e `server.key` (dono UID 1883), montados no Mosquitto |
+| `pki/node-red/` | `ca.crt`, `server.crt` e `server.key` (dono UID 1000), HTTPS da porta 1880 |
 | `ESP32/include/ca_cert.hpp` | certificado público da CA para o firmware, igual para toda a frota |
 
 O certificado do servidor vale 825 dias. Nomes e IPs vêm de `MQTT_TLS_NOMES` (padrão `vplviot.ctn.fundacentro.intra`) e `MQTT_TLS_IPS` (padrão `10.32.8.115`), separados por espaço; `mosquitto`, `localhost` e `127.0.0.1` entram sempre. Cada IP entra também como DNS, porque o mbedTLS do ESP32 só compara o host com entradas DNS.
 
-Rodar de novo, com `pki/ca/ca.key` presente, renova só o certificado do servidor, sem regravar placas. Sem a chave, o script cria uma CA nova, e todas as placas precisam ser recompiladas e regravadas. `pki/` é ignorado pelo Git. Detalhes em `docs/DEPLOY_PROD.md`.
+Rodar de novo, com `pki/ca/ca.key` presente, renova só os certificados de servidor (broker e Node-RED), sem regravar placas. Se `pki/ca/ca.crt` existe e a chave não, o script se recusa a rodar; para criar uma CA nova de propósito, apague `pki/ca/` (todas as placas precisam ser regravadas e a CA nova instalada nos navegadores). `pki/` é ignorado pelo Git. Detalhes em `docs/DEPLOY_PROD.md`.
 
 ## `check_docs_sync.py`
 

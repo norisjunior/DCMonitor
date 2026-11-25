@@ -47,9 +47,9 @@ Mantenha `BIND_ADDRESS=0.0.0.0`: esse valor faz o Docker aceitar conexões por
 todas as interfaces do servidor. Acesse as interfaces pelo IP atual
 `10.32.8.115`, nunca por `0.0.0.0`.
 
-### Certificados TLS do broker
+### Certificados TLS (broker e Node-RED)
 
-As placas conectam só na porta 8883, com TLS. Gere a CA e o certificado do servidor, como root, na raiz do repositório:
+As placas conectam só na porta 8883, com TLS, e o Node-RED serve a porta 1880 só em HTTPS. Gere a CA e os certificados, como root, na raiz do repositório:
 
 ```bash
 sudo bash scripts/gerar_certificados.sh
@@ -59,9 +59,10 @@ sudo bash scripts/gerar_certificados.sh
 |---|---|
 | `pki/ca/ca.key`, `pki/ca/ca.crt` | CA própria do DCMonitor, 10 anos; criada só na primeira execução |
 | `pki/mosquitto/` | `ca.crt`, `server.crt` e `server.key` (dono UID 1883), montados no Mosquitto (`MQTT_CERTS_DIR`) |
+| `pki/node-red/` | `ca.crt`, `server.crt` e `server.key` (dono UID 1000), montados no Node-RED (`NODERED_CERTS_DIR`) para o HTTPS da 1880 |
 | `ESP32/include/ca_cert.hpp` | certificado público da CA para o firmware, igual para toda a frota |
 
-O certificado do servidor vale 825 dias e traz os nomes pelos quais as placas chegam ao broker:
+Os dois certificados de servidor valem 825 dias e trazem os nomes pelos quais as placas e os navegadores chegam ao servidor:
 
 | Variável | Padrão | Entra no certificado |
 |---|---|---|
@@ -75,9 +76,21 @@ sudo MQTT_TLS_NOMES="vplviot.ctn.fundacentro.intra" MQTT_TLS_IPS="10.32.8.115" \
   bash scripts/gerar_certificados.sh
 ```
 
-A chave da CA é o segredo mais sensível da instalação e não tem senha: guarde uma cópia de `pki/ca/ca.key` em cofre. O recomendado é tirá-la do servidor depois de emitir o certificado e devolvê-la só para renovar (veja "Renovação do certificado do broker"). `pki/` e `mqtt-seguranca/` estão no `.gitignore`.
+A chave da CA é o segredo mais sensível da instalação e não tem senha: depois de emitir os certificados, tire-a do servidor seguindo "Chave da CA", no fim deste documento. `pki/` e `mqtt-seguranca/` estão no `.gitignore`.
 
 Copie `ESP32/include/ca_cert.hpp` para a máquina que compila o firmware (veja `ESP32/README.md`).
+
+### Confiar na CA nos navegadores
+
+A porta 1880 (editor do Node-RED e página `/admin/`) usa HTTPS com certificado da CA do DCMonitor. Até o navegador confiar nessa CA, ele mostra um aviso de site não seguro. Instale `pki/ca/ca.crt` (o certificado público, não a chave) em cada computador que acessa a página:
+
+- **Windows, Chrome e Edge:** copie o `ca.crt` para o computador, dê dois cliques, **Instalar Certificado** → **Máquina Local** → **Colocar todos os certificados no repositório a seguir** → **Autoridades de Certificação Raiz Confiáveis**. Ou, como administrador: `certutil -addstore -f Root ca.crt`.
+- **Vários computadores do domínio:** distribua o `ca.crt` por GPO (Configuração do Computador → Políticas → Configurações do Windows → Configurações de Segurança → Políticas de Chave Pública → Autoridades de Certificação Raiz Confiáveis).
+- **Firefox:** usa a mesma lista do Windows quando `security.enterprise_roots.enabled` está ativo (padrão nas versões atuais); senão, importe em Configurações → Privacidade e Segurança → Certificados → Autoridades.
+
+Acesse pelo nome que está no certificado: `https://vplviot.ctn.fundacentro.intra:1880/admin/` ou `https://10.32.8.115:1880/admin/`.
+
+O `curl` do Windows (Schannel) recusa o certificado com "the revocation status is unknown", porque a CA não publica lista de revogação. Use `curl --ssl-no-revoke --cacert ca.crt ...`. Navegadores não exigem essa lista para uma CA instalada localmente.
 
 ### Diretório das credenciais MQTT
 
@@ -179,7 +192,7 @@ done
 sudo firewall-cmd --reload
 ```
 
-A página de cadastro usa a mesma porta `1880` do editor e devolve a senha MQTT gerada sem TLS: quem cadastra placas precisa estar na rede de gestão, e a 1880 não deve ser aberta para as redes das placas.
+A página de cadastro usa a mesma porta `1880` do editor, em HTTPS. Quem cadastra placas precisa estar na rede de gestão, e a 1880 não deve ser aberta para as redes das placas.
 
 ## 5. Preparar o Zabbix
 
@@ -202,7 +215,7 @@ Gere a credencial de uma placa de teste (ID fictício no formato do firmware, co
 2. InfluxDB Data Explorer com measurement `ambiente` e tags `local` e `nome`.
 3. Grafana `DCMonitor - Ambiente` atualizado.
 4. Latest Data do Zabbix atualizado.
-5. Página `http://10.32.8.115:1880/admin/` abre com o login do cadastro e lista a placa de teste como "novo", com a credencial ativa.
+5. Página `https://10.32.8.115:1880/admin/` abre com o login do cadastro e lista a placa de teste como "novo", com a credencial ativa.
 6. Revogue a credencial de teste ao terminar.
 
 ## Backup
@@ -227,28 +240,89 @@ O cadastro de dispositivos é um arquivo comum do host: basta copiá-lo, inclusi
 
 `mqtt-seguranca/dynamic-security.json` guarda as credenciais das placas (só hashes). Sem ele, todas as placas precisam de senha nova e de regravação. Para restaurar, copie-o de volta mantendo o dono UID 1883 e o modo `0600` e reinicie o Mosquitto.
 
-Guarde `.env` e `pki/ca/ca.key` separadamente em cofre seguro. Perder a chave da CA obriga a criar uma CA nova e regravar todas as placas na próxima renovação. Os diretórios `backups/`, `cadastro/`, `pki/` e `mqtt-seguranca/` são ignorados pelo Git.
+Guarde `.env` em cofre seguro. A chave da CA fica fora do servidor, cifrada ("Chave da CA"): guarde o arquivo cifrado e a senha dele em lugares separados. Perder a chave obriga a criar uma CA nova, regravar todas as placas e reinstalar a CA nos navegadores na próxima renovação. Os diretórios `backups/`, `cadastro/`, `pki/` e `mqtt-seguranca/` são ignorados pelo Git.
 
-## Renovação do certificado do broker
+## Renovação dos certificados
 
-O certificado do servidor vale 825 dias. Confira a data de vencimento:
+Os certificados do broker e do Node-RED valem 825 dias. Confira a data de vencimento:
 
 ```bash
 openssl x509 -in pki/mosquitto/server.crt -noout -enddate
+openssl x509 -in pki/node-red/server.crt -noout -enddate
 ```
 
-Antes de vencer, rode o script de novo e reinicie o broker:
+Antes de vencer, devolva a chave da CA ("Chave da CA"), rode o script de novo e reinicie os serviços:
 
 ```bash
 sudo bash scripts/gerar_certificados.sh
-docker compose restart mosquitto
+docker compose restart mosquitto node-red
 ```
 
-Com `pki/ca/ca.key` presente, o script reaproveita a CA e renova só o certificado do servidor: as placas não precisam ser regravadas. Se a chave da CA foi guardada fora do servidor, devolva-a para `pki/ca/` antes de rodar o script: sem ela, o script cria uma CA nova.
+O Node-RED também relê o certificado sozinho a cada 12 h; o reinício só antecipa.
+
+Com `pki/ca/ca.key` presente, o script reaproveita a CA e renova só os certificados de servidor: as placas não precisam ser regravadas e os navegadores continuam confiando. Sem a chave, o script se recusa a rodar.
 
 As placas não verificam as datas do certificado (o mbedTLS do firmware é compilado sem essa verificação), então não deixam de conectar quando ele vence. Um certificado vencido, ou com a chave vazada, continua aceito por elas até a troca da CA.
 
-Apagar `pki/ca/` cria uma CA nova: o `ca_cert.hpp` muda e todas as placas precisam ser recompiladas e regravadas.
+Apagar `pki/ca/` cria uma CA nova: o `ca_cert.hpp` muda, todas as placas precisam ser recompiladas e regravadas e a CA nova precisa ser instalada nos navegadores.
+
+## Chave da CA
+
+`pki/ca/ca.key` assina todos os certificados da instalação. Quem a tiver emite um certificado que as placas e os navegadores aceitam. Ela só é usada para emitir ou renovar certificados (a cada pouco mais de 2 anos), então o lugar dela é fora do servidor.
+
+Os comandos abaixo usam o seu usuário administrativo no servidor (o mesmo do `sudo`), aqui chamado `admin`: o Oracle Linux 9 não aceita login de root por senha no SSH.
+
+### Tirar a chave do servidor
+
+No servidor, cifre a chave com uma senha forte (o `openssl` pede a senha duas vezes). O arquivo cifrado vai para o seu diretório pessoal, legível só por você:
+
+```bash
+cd /IoTPlatform
+sudo openssl pkey -in pki/ca/ca.key -aes256 -out ~/dcmonitor-ca.key.cifrada
+sudo chown "$USER": ~/dcmonitor-ca.key.cifrada
+chmod 600 ~/dcmonitor-ca.key.cifrada
+sha256sum ~/dcmonitor-ca.key.cifrada
+```
+
+No seu computador (o PowerShell do Windows 10/11 já traz o `scp`), copie e confira o hash. Ele deve ser igual ao do servidor; o Windows mostra em maiúsculas, o Linux em minúsculas:
+
+```powershell
+scp admin@10.32.8.115:dcmonitor-ca.key.cifrada .
+Get-FileHash .\dcmonitor-ca.key.cifrada -Algorithm SHA256
+```
+
+Guarde o arquivo cifrado em dois lugares (por exemplo, o cofre de senhas da equipe e uma mídia guardada), e a senha da cifra no cofre de senhas, separada do arquivo. Antes de apagar a original, confirme que a cópia abre com a senha. No servidor:
+
+```bash
+sudo openssl pkey -in ~/dcmonitor-ca.key.cifrada -noout   # pede a senha; sem erro = ok
+```
+
+Por fim, apague a chave e a cópia do servidor:
+
+```bash
+sudo shred -u pki/ca/ca.key ~/dcmonitor-ca.key.cifrada
+ls pki/ca/   # ca.crt, index.txt, serial e emitidos/ continuam; ca.key não
+```
+
+Os demais arquivos de `pki/ca/` ficam no servidor: o script precisa deles para renovar. Sem a chave, o script se recusa a rodar, em vez de criar uma CA nova por engano.
+
+O `shred` não alcança cópias que já existiam antes dele: snapshots da VM e backups do servidor feitos enquanto a chave estava em `pki/ca/` continuam contendo-a. Proteja ou descarte esses snapshots e backups.
+
+### Devolver a chave para renovar
+
+```powershell
+scp .\dcmonitor-ca.key.cifrada admin@10.32.8.115:
+```
+
+```bash
+cd /IoTPlatform
+sudo openssl pkey -in ~/dcmonitor-ca.key.cifrada -out pki/ca/ca.key   # pede a senha
+sudo chmod 600 pki/ca/ca.key
+sudo bash scripts/gerar_certificados.sh
+docker compose restart mosquitto node-red
+sudo shred -u pki/ca/ca.key ~/dcmonitor-ca.key.cifrada
+```
+
 
 ## Atualização e rollback
 

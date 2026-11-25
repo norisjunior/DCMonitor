@@ -6,6 +6,23 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-11-25c] — HTTPS no Node-RED
+
+### Adicionado
+
+- `scripts/gerar_certificados.sh` — emite também o certificado do Node-RED (`pki/node-red/`, chave com dono UID 1000) e se recusa a rodar quando a CA existe sem a chave
+- `node-red/settings.js` — porta 1880 só em HTTPS, certificado relido a cada 12 h
+- `docs/DEPLOY_PROD.md` — "Confiar na CA nos navegadores" e "Chave da CA" (tirar do servidor, cifrada, e devolver para renovar)
+
+### Alterado
+
+- `docker-compose.yml` — monta `NODERED_CERTS_DIR` em `/data/tls`; `NODE_EXTRA_CA_CERTS` e healthcheck em HTTPS
+- Endereços do Node-RED na documentação passam a `https://…:1880`; `docs/SECURITY.md`, `PROJECT_BRIEF.md` (D-030) e `docs/decision-log.md`
+
+**Ação necessária:** rode `sudo bash scripts/gerar_certificados.sh` de novo (gera `pki/node-red/`), acrescente `NODERED_CERTS_DIR=./pki/node-red` ao `.env`, recrie o volume `dcmonitor_node_red_data` (novo `settings.js`) e instale `pki/ca/ca.crt` nos computadores que acessam a página. Depois, tire `pki/ca/ca.key` do servidor.
+
+---
+
 ## [2026-11-25b] — Credencial MQTT por dispositivo, TLS e segundo Zabbix
 
 ### Adicionado

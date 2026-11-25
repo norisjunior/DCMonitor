@@ -2,6 +2,16 @@
 
 > Entradas mais recentes primeiro.
 
+## 2026-11-25 — HTTPS na porta 1880 com a CA do DCMonitor
+
+**Decisão:** O Node-RED serve a porta 1880 (editor, página `/admin/` e APIs) só em HTTPS, com certificado emitido pela mesma CA do broker (`pki/node-red/`, chave própria com dono UID 1000). O certificado é relido a cada 12 h (`httpsRefreshInterval`). Sem os arquivos, o Node-RED não sobe. Os navegadores passam a confiar na CA pela instalação de `pki/ca/ca.crt` (manual ou por GPO). A chave da CA sai do servidor, cifrada, e volta só para renovar.
+
+**Justificativa:** A senha MQTT gerada pela página e o login HTTP Basic trafegavam em claro. A CA própria já existe e já é a raiz de confiança do MQTT; um certificado separado mantém cada chave legível só pelo usuário do seu container. HTTPS direto no Node-RED evita um proxy reverso a mais.
+
+**Alternativas descartadas:** Proxy reverso (nginx) com TLS, que acrescenta um serviço; certificado da CA corporativa, que depende de outra equipe e não serve à rede apartada; manter HTTP com a 1880 só na rede de gestão, que deixava a senha exposta a quem escuta essa rede.
+
+**Consequências:** Endereços passam a `https://…:1880`. Cada computador que acessa a página precisa ter a CA instalada, ou verá aviso de site não seguro. O `curl` do Windows (Schannel) exige `--ssl-no-revoke`, porque a CA não publica lista de revogação. Grafana, n8n e InfluxDB continuam em HTTP. Renovar exige devolver a chave da CA ao servidor; sem ela, o script se recusa a rodar.
+
 ## 2026-11-25 — Credencial MQTT por dispositivo pelo plugin dynamic security
 
 **Decisão:** Cada placa autentica no Mosquitto com usuário igual ao `device_id` e senha própria, gerada na página `/admin/`. O Mosquitto passa a usar o plugin dynamic security: o Node-RED, como cliente administrador, cria, troca e revoga credenciais por mensagens em `$CONTROL/dynamic-security/v1`, sem reiniciar o broker. Cada placa recebe o papel `disp-<device_id>`, com permissão apenas para publicar em `fdctmon/<device_id>/data` e `/status` e ler `fdctmon/<device_id>/cmd`. A senha compartilhada da frota e o `acl_file` por client-id saem. Na placa, a senha fica na NVS e é entregue uma única vez pela serial; sem senha, a placa não dorme e espera a linha `credencial <device_id> <senha>`. Substitui a decisão de 2026-11-25 sobre ACL por client-id.

@@ -71,6 +71,7 @@
 | D-027 | TLS na porta 8883 com CA própria; `ca_cert.hpp` gerado por `scripts/gerar_certificados.sh` | 1883 fechada; renovação do servidor sem regravar placas; caminho aberto para mTLS |
 | D-028 | Servidor como NTP das placas (chrony) | Horário do display em rede apartada; o TLS da placa não depende de relógio nem verifica expiração |
 | D-029 | Segundo servidor Zabbix (`ZABBIX_SERVER_2`) | Mesmos hosts e itens nos dois servidores |
+| D-030 | HTTPS na porta 1880 com a CA do DCMonitor; chave da CA fora do servidor | Navegadores precisam da CA instalada; senha MQTT e login trafegam cifrados |
 
 ## 6. Restrições
 
