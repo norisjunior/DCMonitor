@@ -74,8 +74,12 @@ services:
       ZABBIX_SERVER_2: ${ZABBIX_SERVER_2-10.32.8.69}
       MQTT_ADMIN_USER: ${MQTT_ADMIN_USER:-node-red}
       MQTT_ADMIN_PASSWORD: ${MQTT_ADMIN_PASSWORD:?MQTT_ADMIN_PASSWORD obrigatorio}
+      # Faz o Node.js confiar na CA do DCMonitor (healthcheck em HTTPS).
+      NODE_EXTRA_CA_CERTS: /data/tls/ca.crt
     volumes:
       - node_red_data:/data
+      # Certificado HTTPS da porta 1880, gerado por scripts/gerar_certificados.sh.
+      - ${NODERED_CERTS_DIR:-./pki/node-red}:/data/tls:ro,Z
       # Cadastro de dispositivos editado pela página /admin/. Diretório do host,
       # gravável pelo UID 1000 do container, para backup direto pelo host.
       - ${CADASTRO_DIR:-./cadastro}:/data/cadastro:Z
@@ -85,7 +89,7 @@ services:
       influxdb:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:1880/auth/login').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('https://localhost:1880/auth/login').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 5
