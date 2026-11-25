@@ -10,10 +10,12 @@ namespace Config {
 constexpr char WIFI_SSID[] = "SEU_WIFI";
 constexpr char WIFI_PASSWORD[] = "SUA_SENHA_WIFI";
 
+// Broker MQTT com TLS. Use um nome ou IP presente no certificado do servidor
+// (scripts/gerar_certificados.sh), por exemplo o IP do servidor ou
+// vplviot.ctn.fundacentro.intra. Usuario e senha MQTT nao ficam aqui: o
+// usuario e o device_id e a senha e gravada pela serial (DC_Credencial.hpp).
 constexpr char MQTT_HOST[] = "192.168.x.x";
-constexpr uint16_t MQTT_PORT = 1883;
-constexpr char MQTT_USERNAME[] = "fdctmon_iot";
-constexpr char MQTT_PASSWORD[] = "SUA_SENHA_MQTT";
+constexpr uint16_t MQTT_PORT = 8883;
 constexpr char MQTT_TOPICO_BASE[] = "fdctmon";
 
 constexpr uint8_t PINO_DHT = 25;
@@ -40,11 +42,12 @@ constexpr unsigned long TEMPO_MAXIMO_NTP_MS = 3000;
 // Watchdog: se o ciclo acordado passar disso, a placa reinicia sozinha.
 constexpr uint32_t LIMITE_CICLO_ACORDADO_S = 30;
 
-// Horario mostrado no display. Em rede sem internet, use o NTP interno.
-constexpr char NTP_SERVIDOR[] = "pool.ntp.org";
+// Horario do display. Aponte para o servidor do DCMonitor, que serve NTP as
+// placas (chrony; docs/DEPLOY_PROD.md). O TLS nao depende do horario.
+constexpr char NTP_SERVIDOR[] = "192.168.x.x";
 constexpr char FUSO_HORARIO[] = "<-03>3";  // America/Sao_Paulo, sem horario de verao
 constexpr uint32_t CICLOS_ENTRE_SINCRONIZACOES = 60;
 
-constexpr char VERSAO_FIRMWARE[] = "1.5.0";
+constexpr char VERSAO_FIRMWARE[] = "1.6.0";
 
 }  // namespace Config

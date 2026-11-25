@@ -3,13 +3,20 @@
 #include <Arduino.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 
+#include "ca_cert.hpp"
 #include "config.hpp"
+#include "DC_Credencial.hpp"
 
 namespace Comunicacao {
 
-WiFiClient clienteWifi;
-PubSubClient clienteMqtt(clienteWifi);
+// TLS com verificacao do certificado do broker pela CA do DCMonitor.
+WiFiClientSecure clienteSeguro;
+PubSubClient clienteMqtt(clienteSeguro);
+
+// Senha MQTT desta placa, lida da NVS no boot (usuario = idDispositivo).
+char senhaMqtt[Credencial::TAMANHO_MAXIMO + 1];
 
 char idDispositivo[24];
 char topicoTelemetria[64];

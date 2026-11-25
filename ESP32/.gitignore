@@ -1,3 +1,5 @@
 .pio
 include/config.hpp
+include/ca_cert.hpp
 .vscode
+src/*.ino.cpp
