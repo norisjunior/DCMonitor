@@ -45,6 +45,6 @@ constexpr char NTP_SERVIDOR[] = "pool.ntp.org";
 constexpr char FUSO_HORARIO[] = "<-03>3";  // America/Sao_Paulo, sem horario de verao
 constexpr uint32_t CICLOS_ENTRE_SINCRONIZACOES = 60;
 
-constexpr char VERSAO_FIRMWARE[] = "1.4.0";
+constexpr char VERSAO_FIRMWARE[] = "1.5.0";
 
 }  // namespace Config
