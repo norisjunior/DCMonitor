@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadastro de dispositivos · DCMonitor</title>
+<style>
+  :root {
+    --bg: #f3f6f7; --surface: #ffffff; --ink: #14212a; --muted: #566874; --line: #d6dfe4;
+    --accent: #0b6a86; --accent-ink: #ffffff; --ok: #1e7a4c; --warn: #9a5b00; --bad: #b0261c;
+    --bad-soft: #fbe6e3; --info-soft: #e1f0f5; --input: #ffffff;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e151a; --surface: #162028; --ink: #e2ebef; --muted: #93a6b2; --line: #2a3944;
+      --accent: #5bb8d4; --accent-ink: #0e151a; --ok: #62c391; --warn: #e3a54c; --bad: #f27a6e;
+      --bad-soft: #3a1a17; --info-soft: #15313b; --input: #0e151a;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 96px; display: grid; gap: 28px; }
+  header { display: grid; gap: 4px; }
+  h1 { margin: 0; font-size: 1.5rem; }
+  h2 { margin: 0; font-size: 1.15rem; }
+  p { margin: 0; }
+  .muted { color: var(--muted); }
+  .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.9em; }
+  section { display: grid; gap: 12px; }
+  .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  input[type="text"], select {
+    width: 100%; min-width: 140px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--input); color: var(--ink); font: inherit;
+  }
+  input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .situacao { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .situacao::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+  .s-ok { color: var(--ok); } .s-warn { color: var(--warn); } .s-bad { color: var(--bad); } .s-none { color: var(--muted); }
+  .tag { font-size: 0.72rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--info-soft); color: var(--accent); white-space: nowrap; }
+  .banner { border-radius: 8px; padding: 10px 14px; }
+  .banner.erro { background: var(--bad-soft); color: var(--bad); }
+  .banner.info { background: var(--info-soft); }
+  .add-local { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+  .add-local label { display: grid; gap: 2px; font-size: 0.85rem; color: var(--muted); flex: 1 1 180px; }
+  .barra {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line);
+    padding: 10px 16px; display: flex; justify-content: center;
+  }
+  .barra-interna { max-width: 1100px; width: 100%; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+  .vazio { padding: 16px; color: var(--muted); }
+  .acoes { display: flex; gap: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Cadastro de dispositivos</h1>
+    <p class="muted">Defina o nome amigável e o local de cada ESP32. As medições novas passam a sair com esses dados no InfluxDB e no Grafana logo após salvar.</p>
+  </header>
+
+  <div id="erro" class="banner erro" hidden></div>
+  <div id="aviso" class="banner info" hidden></div>
+
+  <section>
+    <div class="section-head">
+      <h2>Dispositivos</h2>
+      <span class="muted" id="resumo-dispositivos"></span>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Situação</th><th>Dispositivo</th><th>Nome amigável</th><th>Local</th><th>Última leitura</th><th></th></tr></thead>
+        <tbody id="tabela-dispositivos"></tbody>
+      </table>
+      <p class="vazio" id="sem-dispositivos" hidden>Nenhum dispositivo enviou dados desde o último reinício do Node-RED e nenhum está cadastrado. Ligue uma placa e aguarde até um minuto.</p>
+    </div>
+    <p class="muted">Placas que enviaram dados mas não têm cadastro aparecem como <span class="tag">novo</span> e são gravadas com local <span class="mono">sem-local</span>. A situação considera a última leitura recebida desde o último reinício do Node-RED.</p>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Locais</h2>
+      <span class="muted">O código vira a tag <span class="mono">local</span> no InfluxDB e não pode ser alterado depois de criado.</span>
+    </div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Código</th><th>Nome</th><th>Dispositivos</th><th></th></tr></thead>
+        <tbody id="tabela-locais"></tbody>
+      </table>
+      <p class="vazio" id="sem-locais" hidden>Nenhum local cadastrado. Crie o primeiro abaixo, por exemplo “Datacenter”.</p>
+    </div>
+    <form class="add-local" id="form-local" novalidate>
+      <label for="novo-local-nome">Nome do local
+        <input type="text" id="novo-local-nome" maxlength="48" placeholder="Laboratório de EPI" autocomplete="off">
+      </label>
+      <label for="novo-local-codigo">Código
+        <input type="text" id="novo-local-codigo" maxlength="32" placeholder="lab-epi" autocomplete="off" class="mono">
+      </label>
+      <button type="submit">Adicionar local</button>
+    </form>
+  </section>
+</main>
+
+<div class="barra">
+  <div class="barra-interna">
+    <span id="estado-salvo" class="muted">Carregando…</span>
+    <div class="acoes">
+      <button type="button" id="botao-descartar" disabled>Descartar alterações</button>
+      <button type="button" id="botao-salvar" class="primary" disabled>Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

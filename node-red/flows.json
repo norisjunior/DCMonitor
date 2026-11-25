@@ -11,7 +11,7 @@
     "type": "mqtt in",
     "z": "dcmonitor-tab",
     "name": "Telemetria fdctmon",
-    "topic": "fdctmon/+/attrs",
+    "topic": "fdctmon/+/data",
     "qos": "0",
     "datatype": "utf8",
     "broker": "mqtt-internal",
@@ -21,7 +21,11 @@
     "inputs": 0,
     "x": 150,
     "y": 120,
-    "wires": [["parse-json"]]
+    "wires": [
+      [
+        "parse-json"
+      ]
+    ]
   },
   {
     "id": "parse-json",
@@ -33,14 +37,18 @@
     "pretty": false,
     "x": 350,
     "y": 120,
-    "wires": [["validate-telemetry"]]
+    "wires": [
+      [
+        "validate-telemetry"
+      ]
+    ]
   },
   {
     "id": "validate-telemetry",
     "type": "function",
     "z": "dcmonitor-tab",
     "name": "Validar telemetria",
-    "func": "const p = msg.payload;\nif (!p || typeof p !== 'object') {\n    node.error('Payload MQTT não é um objeto JSON', msg);\n    return null;\n}\n\nconst deviceId = String(p.device_id || '').trim();\nconst temp = Number(p.temp);\nconst humidity = Number(p.umid);\nconst heatIndex = p.ic === undefined || p.ic === null ? null : Number(p.ic);\nconst rssi = p.rssi === undefined || p.rssi === null ? null : Number(p.rssi);\n\nif (!/^[a-zA-Z0-9_-]{1,64}$/.test(deviceId)) {\n    node.error('device_id ausente ou inválido', msg);\n    return null;\n}\nif (!Number.isFinite(temp) || temp < -40 || temp > 80) {\n    node.error('temperatura fora da faixa válida', msg);\n    return null;\n}\nif (!Number.isFinite(humidity) || humidity < 0 || humidity > 100) {\n    node.error('umidade fora da faixa válida', msg);\n    return null;\n}\nif (heatIndex !== null && !Number.isFinite(heatIndex)) {\n    node.error('índice de calor inválido', msg);\n    return null;\n}\nif (rssi !== null && (!Number.isFinite(rssi) || rssi < -120 || rssi > 0)) {\n    node.error('RSSI fora da faixa válida', msg);\n    return null;\n}\n\n// O nó InfluxDB escapa tags e fields e recebe o measurement da própria configuração.\nconst fields = { temperatura: temp, umidade: humidity };\nif (heatIndex !== null) fields.indice_calor = heatIndex;\nif (rssi !== null) fields.rssi = rssi;\nconst tags = { device_id: deviceId, sensor: String(p.sensor || 'desconhecido') };\n\nnode.status({ fill: 'green', shape: 'dot', text: `${deviceId}: ${temp} °C / ${humidity} %` });\n\n// Saída 1 grava no InfluxDB; saída 2 leva uma cópia própria ao Zabbix,\n// com o device_id porque ele é o nome do host no Zabbix.\nreturn [\n    { ...msg, payload: [fields, tags] },\n    { ...msg, payload: { device_id: deviceId, ...fields } }\n];",
+    "func": "const p = msg.payload;\nif (!p || typeof p !== 'object') {\n    node.error('Payload MQTT não é um objeto JSON', msg);\n    return null;\n}\n\nconst deviceId = String(p.device_id || '').trim();\nconst temp = Number(p.temp);\nconst humidity = Number(p.umid);\nconst heatIndex = p.ic === undefined || p.ic === null ? null : Number(p.ic);\nconst rssi = p.rssi === undefined || p.rssi === null ? null : Number(p.rssi);\n\nif (!/^[a-zA-Z0-9_-]{1,64}$/.test(deviceId)) {\n    node.error('device_id ausente ou inválido', msg);\n    return null;\n}\n// Tópico fdctmon/{device_id}/data. A ACL do broker só deixa cada cliente\n// publicar no ramo do próprio client-id; o payload precisa concordar com ele.\nconst partes = String(msg.topic || '').split('/');\nif (partes.length !== 3 || partes[1] !== deviceId) {\n    node.error('device_id do payload difere do tópico', msg);\n    return null;\n}\nif (!Number.isFinite(temp) || temp < -40 || temp > 80) {\n    node.error('temperatura fora da faixa válida', msg);\n    return null;\n}\nif (!Number.isFinite(humidity) || humidity < 0 || humidity > 100) {\n    node.error('umidade fora da faixa válida', msg);\n    return null;\n}\nif (heatIndex !== null && !Number.isFinite(heatIndex)) {\n    node.error('índice de calor inválido', msg);\n    return null;\n}\nif (rssi !== null && (!Number.isFinite(rssi) || rssi < -120 || rssi > 0)) {\n    node.error('RSSI fora da faixa válida', msg);\n    return null;\n}\n\n// Local e nome vêm do cadastro mantido pela página /admin/. Placa sem cadastro\n// continua gravando, com local \"sem-local\" e o próprio device_id como nome.\nconst cadastro = global.get('cadastro');\nconst dispositivos = (cadastro && cadastro.dispositivos) || {};\nconst registro = Object.prototype.hasOwnProperty.call(dispositivos, deviceId)\n    ? dispositivos[deviceId]\n    : {};\nconst local = registro.local || 'sem-local';\nconst nome = registro.nome || deviceId;\n\n// Última leitura de cada placa, mostrada na página de cadastro. Fica só em\n// memória: depois de um reinício, cada placa reaparece no ciclo seguinte.\n// Objeto sem protótipo e com teto: client-ids arbitrários de quem tem a\n// credencial da frota não crescem a memória sem limite.\nconst MAX_VISTOS = 1000;\nconst vistos = global.get('vistos') || Object.create(null);\nif (!Object.prototype.hasOwnProperty.call(vistos, deviceId) && Object.keys(vistos).length >= MAX_VISTOS) {\n    let maisAntigo = null;\n    for (const id of Object.keys(vistos)) {\n        if (maisAntigo === null || vistos[id].ultimo < vistos[maisAntigo].ultimo) maisAntigo = id;\n    }\n    delete vistos[maisAntigo];\n}\nvistos[deviceId] = {\n    ultimo: Date.now(),\n    temp,\n    umid: humidity,\n    rssi,\n    firmware: p.firmware_version ? String(p.firmware_version).slice(0, 32) : null\n};\nglobal.set('vistos', vistos);\n\n// O nó InfluxDB escapa tags e fields e recebe o measurement da própria configuração.\nconst fields = { temperatura: temp, umidade: humidity };\nif (heatIndex !== null) fields.indice_calor = heatIndex;\nif (rssi !== null) fields.rssi = rssi;\nconst tags = {\n    device_id: deviceId,\n    sensor: String(p.sensor || 'desconhecido').slice(0, 32),\n    local,\n    nome\n};\n\nnode.status({ fill: 'green', shape: 'dot', text: `${nome}: ${temp} °C / ${humidity} %` });\n\n// Saída 1 grava no InfluxDB; saída 2 leva uma cópia própria ao Zabbix,\n// com o device_id porque ele é o nome do host no Zabbix.\nreturn [\n    { ...msg, payload: [fields, tags] },\n    { ...msg, payload: { device_id: deviceId, ...fields } }\n];",
     "outputs": 2,
     "timeout": 0,
     "noerr": 0,
@@ -49,7 +57,14 @@
     "libs": [],
     "x": 570,
     "y": 120,
-    "wires": [["write-influx"], ["build-zabbix-items"]]
+    "wires": [
+      [
+        "write-influx"
+      ],
+      [
+        "build-zabbix-items"
+      ]
+    ]
   },
   {
     "id": "write-influx",
@@ -83,7 +98,11 @@
     "libs": [],
     "x": 830,
     "y": 180,
-    "wires": [["send-zabbix"]]
+    "wires": [
+      [
+        "send-zabbix"
+      ]
+    ]
   },
   {
     "id": "send-zabbix",
@@ -109,7 +128,11 @@
     "uncaught": false,
     "x": 160,
     "y": 260,
-    "wires": [["error-debug"]]
+    "wires": [
+      [
+        "error-debug"
+      ]
+    ]
   },
   {
     "id": "error-debug",
@@ -126,6 +149,277 @@
     "statusType": "auto",
     "x": 370,
     "y": 260,
+    "wires": []
+  },
+  {
+    "id": "cadastro-tab",
+    "type": "tab",
+    "label": "Cadastro de dispositivos",
+    "disabled": false,
+    "info": "Mantém o cadastro em /data/cadastro/dispositivos.json (diretório do host) e serve a API usada pela página /admin/."
+  },
+  {
+    "id": "cadastro-comentario",
+    "type": "comment",
+    "z": "cadastro-tab",
+    "name": "Cadastro: local e nome amigável de cada device_id",
+    "info": "O arquivo fica no host (CADASTRO_DIR) e é lido ao iniciar.\nA página /admin/ lê com GET e salva com PUT /api/cadastro.\nO fluxo de telemetria consulta global.cadastro a cada medição.",
+    "x": 220,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "cadastro-ao-iniciar",
+    "type": "inject",
+    "z": "cadastro-tab",
+    "name": "Ao iniciar",
+    "props": [
+      {
+        "p": "origem",
+        "v": "arquivo",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": 0.5,
+    "topic": "",
+    "x": 130,
+    "y": 100,
+    "wires": [
+      [
+        "cadastro-ler"
+      ]
+    ]
+  },
+  {
+    "id": "cadastro-ler",
+    "type": "file in",
+    "z": "cadastro-tab",
+    "name": "Ler dispositivos.json",
+    "filename": "/data/cadastro/dispositivos.json",
+    "filenameType": "str",
+    "format": "utf8",
+    "chunk": false,
+    "sendError": false,
+    "encoding": "utf8",
+    "allProps": false,
+    "x": 330,
+    "y": 100,
+    "wires": [
+      [
+        "cadastro-validar"
+      ]
+    ]
+  },
+  {
+    "id": "cadastro-catch-ler",
+    "type": "catch",
+    "z": "cadastro-tab",
+    "name": "Falha na leitura",
+    "scope": [
+      "cadastro-ler"
+    ],
+    "uncaught": false,
+    "x": 140,
+    "y": 160,
+    "wires": [
+      [
+        "cadastro-inicial"
+      ]
+    ]
+  },
+  {
+    "id": "cadastro-inicial",
+    "type": "function",
+    "z": "cadastro-tab",
+    "name": "Cadastro inicial",
+    "func": "// Primeira subida: sem dispositivos.json, cria um cadastro vazio no disco.\n// Qualquer outro erro de leitura (permissão, diretório ausente) deixa o\n// cadastro descarregado e a página mostra o motivo.\nconst detalhe = String((msg.error && msg.error.message) || 'erro desconhecido');\nif (!/ENOENT/.test(detalhe)) {\n    const t = `Não foi possível ler dispositivos.json: ${detalhe}`;\n    global.set('cadastroErro', t);\n    node.status({ fill: 'red', shape: 'ring', text: 'falha ao ler o cadastro' });\n    node.error(t);\n    return null;\n}\nnode.warn('dispositivos.json ausente; criando cadastro vazio.');\nnode.status({ fill: 'blue', shape: 'dot', text: 'cadastro vazio criado' });\nreturn {\n    origem: 'inicial',\n    payload: { schema_version: 1, revisao: 0, locais: {}, dispositivos: {} }\n};",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 330,
+    "y": 160,
+    "wires": [
+      [
+        "cadastro-validar"
+      ]
+    ]
+  },
+  {
+    "id": "cadastro-get",
+    "type": "http in",
+    "z": "cadastro-tab",
+    "name": "GET /api/cadastro",
+    "url": "/api/cadastro",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 150,
+    "y": 260,
+    "wires": [
+      [
+        "cadastro-responder"
+      ]
+    ]
+  },
+  {
+    "id": "cadastro-responder",
+    "type": "function",
+    "z": "cadastro-tab",
+    "name": "Responder cadastro",
+    "func": "msg.headers = { 'Cache-Control': 'no-store' };\nmsg.payload = {\n    cadastro: global.get('cadastro') || null,\n    erro: global.get('cadastroErro') || null,\n    vistos: global.get('vistos') || {},\n    agora: Date.now()\n};\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 370,
+    "y": 260,
+    "wires": [
+      [
+        "cadastro-http-response"
+      ]
+    ]
+  },
+  {
+    "id": "cadastro-put",
+    "type": "http in",
+    "z": "cadastro-tab",
+    "name": "PUT /api/cadastro",
+    "url": "/api/cadastro",
+    "method": "put",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 150,
+    "y": 220,
+    "wires": [
+      [
+        "cadastro-origem-api"
+      ]
+    ]
+  },
+  {
+    "id": "cadastro-origem-api",
+    "type": "change",
+    "z": "cadastro-tab",
+    "name": "origem = api",
+    "rules": [
+      {
+        "t": "set",
+        "p": "origem",
+        "pt": "msg",
+        "to": "api",
+        "tot": "str"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 340,
+    "y": 220,
+    "wires": [
+      [
+        "cadastro-validar"
+      ]
+    ]
+  },
+  {
+    "id": "cadastro-validar",
+    "type": "function",
+    "z": "cadastro-tab",
+    "name": "Validar cadastro",
+    "func": "// Valida e normaliza o cadastro vindo do disco (origem \"arquivo\" ou \"inicial\")\n// ou da página /admin/ (origem \"api\").\n// Saída 1: cadastro válido em msg.cadastro. Saída 2: erro HTTP (só origem \"api\").\nconst SLUG = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;\nconst DEVICE = /^[a-zA-Z0-9_-]{1,64}$/;\nconst CONTROLE = /[\\u0000-\\u001f\\u007f]/;\nconst MAX_LOCAIS = 200;\nconst MAX_DISPOSITIVOS = 2000;\n\nconst origem = msg.origem || 'arquivo';\n\nfunction ehObjeto(v) {\n    return v !== null && typeof v === 'object' && !Array.isArray(v);\n}\n\nfunction texto(valor, max) {\n    if (typeof valor !== 'string') return null;\n    const t = valor.trim();\n    if (t.length === 0 || t.length > max || CONTROLE.test(t)) return null;\n    return t;\n}\n\nfunction vazio(v) {\n    return v === undefined || v === null || v === '';\n}\n\nfunction validar(c) {\n    if (!ehObjeto(c)) return { erro: 'O cadastro precisa ser um objeto JSON.' };\n    const locaisIn = c.locais === undefined ? {} : c.locais;\n    const dispIn = c.dispositivos === undefined ? {} : c.dispositivos;\n    if (!ehObjeto(locaisIn)) return { erro: 'O campo \"locais\" precisa ser um objeto.' };\n    if (!ehObjeto(dispIn)) return { erro: 'O campo \"dispositivos\" precisa ser um objeto.' };\n\n    const idsLocais = Object.keys(locaisIn);\n    if (idsLocais.length > MAX_LOCAIS) return { erro: `Máximo de ${MAX_LOCAIS} locais.` };\n    // Mapas sem protótipo: chaves como \"__proto__\" viram dados comuns.\n    const locais = Object.create(null);\n    for (const id of idsLocais) {\n        if (!SLUG.test(id) || id === 'sem-local') {\n            return { erro: `Código de local inválido: \"${id}\". Use letras minúsculas, números e hífen, até 32 caracteres.` };\n        }\n        const nome = texto(locaisIn[id], 48);\n        if (!nome) return { erro: `O nome do local \"${id}\" está vazio ou passa de 48 caracteres.` };\n        locais[id] = nome;\n    }\n\n    const idsDisp = Object.keys(dispIn);\n    if (idsDisp.length > MAX_DISPOSITIVOS) return { erro: `Máximo de ${MAX_DISPOSITIVOS} dispositivos.` };\n    const dispositivos = Object.create(null);\n    for (const id of idsDisp) {\n        if (!DEVICE.test(id)) return { erro: `Identificador de dispositivo inválido: \"${id}\".` };\n        const d = dispIn[id];\n        if (!ehObjeto(d)) return { erro: `O registro do dispositivo \"${id}\" precisa ser um objeto.` };\n        const registro = {};\n        if (!vazio(d.nome)) {\n            const nome = texto(d.nome, 64);\n            if (!nome) return { erro: `O nome do dispositivo \"${id}\" é inválido ou passa de 64 caracteres.` };\n            registro.nome = nome;\n        }\n        if (!vazio(d.local)) {\n            if (typeof d.local !== 'string' || !Object.prototype.hasOwnProperty.call(locais, d.local)) {\n                return { erro: `O dispositivo \"${id}\" aponta para o local \"${d.local}\", que não existe.` };\n            }\n            registro.local = d.local;\n        }\n        dispositivos[id] = registro;\n    }\n\n    const revisao = Number.isInteger(c.revisao) && c.revisao >= 0 ? c.revisao : 0;\n    return { cadastro: { schema_version: 1, revisao, locais, dispositivos } };\n}\n\nfunction falhar(status, mensagem) {\n    if (origem !== 'api') {\n        const t = `dispositivos.json rejeitado: ${mensagem}`;\n        global.set('cadastroErro', t);\n        node.status({ fill: 'red', shape: 'ring', text: 'cadastro inválido no disco' });\n        node.error(t, msg);\n        return null;\n    }\n    msg.statusCode = status;\n    msg.headers = { 'Cache-Control': 'no-store' };\n    msg.payload = { erro: mensagem };\n    return [null, msg];\n}\n\nlet entrada = msg.payload;\nif (Buffer.isBuffer(entrada)) entrada = entrada.toString('utf8');\nif (typeof entrada === 'string') {\n    try {\n        entrada = JSON.parse(entrada);\n    } catch (e) {\n        return falhar(400, `JSON inválido: ${e.message}`);\n    }\n}\n\nconst resultado = validar(entrada);\nif (resultado.erro) return falhar(400, resultado.erro);\n\nif (origem === 'api') {\n    const atual = global.get('cadastro');\n    if (!atual) {\n        return falhar(503, 'O cadastro não foi carregado do disco. Corrija dispositivos.json no host e reinicie o Node-RED.');\n    }\n    if (resultado.cadastro.revisao !== atual.revisao) {\n        return falhar(409, 'O cadastro foi alterado em outra janela. Recarregue a página antes de salvar.');\n    }\n    resultado.cadastro.revisao = atual.revisao + 1;\n}\n\nmsg.cadastro = resultado.cadastro;\nreturn [msg, null];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 560,
+    "y": 160,
+    "wires": [
+      [
+        "cadastro-gravar-aplicar"
+      ],
+      [
+        "cadastro-http-response"
+      ]
+    ]
+  },
+  {
+    "id": "cadastro-gravar-aplicar",
+    "type": "function",
+    "z": "cadastro-tab",
+    "name": "Gravar e aplicar",
+    "func": "// Grava (quando preciso) e aplica o cadastro validado, tudo de forma síncrona:\n// duas requisições não se intercalam aqui, então a revisão conferida abaixo\n// é definitiva. A gravação é atômica: arquivo temporário + rename, com o\n// conteúdo anterior preservado em dispositivos.json.bak.\nconst ARQUIVO = '/data/cadastro/dispositivos.json';\nconst c = msg.cadastro;\n\nfunction responder(status, payload) {\n    if (msg.origem !== 'api') return null;\n    msg.statusCode = status;\n    msg.headers = { 'Cache-Control': 'no-store' };\n    msg.payload = payload;\n    return msg;\n}\n\nif (msg.origem === 'api') {\n    const atual = global.get('cadastro');\n    if (!atual || c.revisao !== atual.revisao + 1) {\n        return responder(409, { erro: 'O cadastro foi alterado em outra janela. Recarregue a página antes de salvar.' });\n    }\n}\n\n// O cadastro lido do disco já está gravado; os demais são gravados antes de valer.\nif (msg.origem !== 'arquivo') {\n    const temporario = `${ARQUIVO}.tmp`;\n    try {\n        fs.writeFileSync(temporario, JSON.stringify(c, null, 2) + '\\n', { encoding: 'utf8', mode: 0o640 });\n        if (fs.existsSync(ARQUIVO)) fs.copyFileSync(ARQUIVO, `${ARQUIVO}.bak`);\n        fs.renameSync(temporario, ARQUIVO);\n    } catch (e) {\n        const t = `Não foi possível gravar dispositivos.json: ${e.message}`;\n        node.status({ fill: 'red', shape: 'ring', text: 'falha ao gravar o cadastro' });\n        node.error(t, msg);\n        if (msg.origem !== 'api') {\n            global.set('cadastroErro', t);\n            return null;\n        }\n        return responder(500, { erro: `${t}. Confira se o diretório do cadastro no host pertence ao UID 1000.` });\n    }\n}\n\nglobal.set('cadastro', c);\nglobal.set('cadastroErro', null);\nconst nDisp = Object.keys(c.dispositivos).length;\nconst nLocais = Object.keys(c.locais).length;\nnode.status({ fill: 'green', shape: 'dot', text: `rev. ${c.revisao}: ${nDisp} dispositivos, ${nLocais} locais` });\n\nreturn responder(200, { ok: true, revisao: c.revisao });",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [
+      {
+        "var": "fs",
+        "module": "fs"
+      }
+    ],
+    "x": 800,
+    "y": 140,
+    "wires": [
+      [
+        "cadastro-http-response"
+      ]
+    ]
+  },
+  {
+    "id": "cadastro-http-response",
+    "type": "http response",
+    "z": "cadastro-tab",
+    "name": "Resposta HTTP",
+    "statusCode": "",
+    "headers": {},
+    "x": 1020,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "cadastro-catch",
+    "type": "catch",
+    "z": "cadastro-tab",
+    "name": "Erros do cadastro",
+    "scope": null,
+    "uncaught": true,
+    "x": 150,
+    "y": 340,
+    "wires": [
+      [
+        "cadastro-erro-debug"
+      ]
+    ]
+  },
+  {
+    "id": "cadastro-erro-debug",
+    "type": "debug",
+    "z": "cadastro-tab",
+    "name": "Erro no cadastro",
+    "active": true,
+    "tosidebar": true,
+    "console": true,
+    "tostatus": false,
+    "complete": "error.message",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 370,
+    "y": 340,
     "wires": []
   },
   {

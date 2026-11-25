@@ -18,6 +18,9 @@ OLD_PROJECT/FdctMonSys-Web/node_modules/
 # Backups operacionais de volumes Docker
 backups/
 
+# Cadastro de dispositivos: dado operacional editado pela página /admin/
+cadastro/
+
 # Editor
 .vscode/
 *.swp
