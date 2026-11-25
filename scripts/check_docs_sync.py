@@ -16,12 +16,14 @@ DOCS_OBRIGATORIOS = [
     "docs/REQUIREMENTS.md",
     "docs/TESTING_STRATEGY.md",
     "docs/DEPLOY_PROD.md",
+    "docs/DEVELOPMENT.md",
     "docs/SECURITY.md",
     "docs/EMBEDDED_IOT_GUIDELINES.md",
     "ESP32/README.md",
     "node-red/README.md",
     "n8n/README.md",
     "grafana/README.md",
+    "mosquitto/README.md",
 ]
 
 raiz = Path(__file__).parent.parent
