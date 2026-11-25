@@ -9,7 +9,7 @@ ESP32 ─TLS :8883→ Mosquitto → Node-RED ┬→ InfluxDB → Grafana
 
 Cada placa publica em `fdctmon/{device_id}/data`, por TLS na porta 8883, com
 usuário igual ao `device_id` e senha própria. A senha é gerada na página de
-cadastro (`http://IP_DO_SERVIDOR:1880/admin/`) e colada no monitor serial da
+cadastro (`https://IP_DO_SERVIDOR:1880/admin/`) e colada no monitor serial da
 placa. O Node-RED acrescenta o local e o nome amigável definidos na mesma página.
 
 ## Subir no Oracle Linux 9
@@ -62,8 +62,8 @@ Interfaces:
 | Serviço | Endereço |
 |---|---|
 | Grafana | `http://IP_DO_SERVIDOR:3000` |
-| Node-RED | `http://IP_DO_SERVIDOR:1880` |
-| Cadastro de dispositivos e credenciais MQTT | `http://IP_DO_SERVIDOR:1880/admin/` |
+| Node-RED | `https://IP_DO_SERVIDOR:1880` |
+| Cadastro de dispositivos e credenciais MQTT | `https://IP_DO_SERVIDOR:1880/admin/` |
 | n8n | `http://IP_DO_SERVIDOR:5678` |
 | InfluxDB | `http://IP_DO_SERVIDOR:8086` |
 | MQTT dos dispositivos (TLS) | `IP_DO_SERVIDOR:8883` |

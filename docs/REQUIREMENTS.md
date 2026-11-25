@@ -69,7 +69,7 @@ Como administrador do Oracle Linux, quero subir toda a plataforma com poucos com
 
 Como operador do NOC, quero dar a cada placa um nome amigável e um local para encontrá-la no Grafana sem decorar o `device_id`.
 
-- Página `http://SERVIDOR:1880/admin/` com login próprio (`CADASTRO_ADMIN_USER`, `CADASTRO_ADMIN_PASSWORD_HASH`), separado do editor do Node-RED.
+- Página `https://SERVIDOR:1880/admin/` com login próprio (`CADASTRO_ADMIN_USER`, `CADASTRO_ADMIN_PASSWORD_HASH`), separado do editor do Node-RED.
 - A página lista as placas vistas desde o último reinício do Node-RED, com situação e última leitura, e as já cadastradas; placa sem cadastro aparece como "novo".
 - Permite definir nome (até 64 caracteres) e local de cada placa, e criar e remover locais (código slug imutável + nome). Local com placas não pode ser removido.
 - Salvar grava `dispositivos.json` no diretório do host `CADASTRO_DIR` e vale para as próximas medições, sem reiniciar.

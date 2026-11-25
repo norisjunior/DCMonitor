@@ -101,7 +101,7 @@ Uma placa nova, ou com a flash apagada, não tem senha MQTT. Nesse estado ela n�
 
    Se o monitor foi aberto depois do boot, tecle Enter numa linha vazia: a placa repete o ID e as instruções.
 
-2. Na página `http://SERVIDOR:1880/admin/`, no formulário "Placa nova: ID mostrado na serial", digite o ID e clique em "Gerar senha". A página só aceita IDs no formato do firmware, `esp32-` seguido de 12 dígitos hexadecimais maiúsculos.
+2. Na página `https://SERVIDOR:1880/admin/`, no formulário "Placa nova: ID mostrado na serial", digite o ID e clique em "Gerar senha". A página só aceita IDs no formato do firmware, `esp32-` seguido de 12 dígitos hexadecimais maiúsculos.
 3. A página mostra a linha `credencial <device_id> <senha>` uma única vez. Clique em "Copiar linha".
 4. Cole a linha no monitor serial e tecle Enter. A placa confere o ID, grava a senha na NVS e reinicia:
 
@@ -160,7 +160,7 @@ O firmware é o mesmo em todas as placas. O que as distingue vem do hardware:
 
 Não há nada por dispositivo em `config.hpp`: gravar uma placa nova é compilar, enviar e colar a linha da credencial, sem editar arquivo nem controlar planilha de IDs. O client-id único importa — dois clientes MQTT com o mesmo id derrubam um ao outro em ciclo. O broker só deixa o usuário `{device_id}` publicar em `fdctmon/{device_id}/...` e descarta sem aviso o que vier fora desse ramo.
 
-Nomes legíveis para o NOC — local e nome amigável — ficam no servidor, não no firmware: no cadastro de dispositivos (`http://SERVIDOR:1880/admin/`), que alimenta o Grafana, e no nome visível do host no Zabbix. Renomear um ponto de medição não exige regravar a placa.
+Nomes legíveis para o NOC — local e nome amigável — ficam no servidor, não no firmware: no cadastro de dispositivos (`https://SERVIDOR:1880/admin/`), que alimenta o Grafana, e no nome visível do host no Zabbix. Renomear um ponto de medição não exige regravar a placa.
 
 ## Ciclo com deep sleep
 

@@ -15,7 +15,7 @@ O dashboard consulta o bucket `fdctmon` e atualiza a cada 30 segundos.
 | `Local` | `local` | seleção múltipla, com "All"; valores vistos nos últimos 30 dias |
 | `Dispositivo` | `nome` | seleção múltipla, com "All"; limitada aos locais escolhidos |
 
-As tags vêm do cadastro de dispositivos (`http://SERVIDOR:1880/admin/`). Placa sem cadastro aparece no local `sem-local`, com o próprio `device_id` como nome. Legendas e valores atuais mostram o nome amigável.
+As tags vêm do cadastro de dispositivos (`https://SERVIDOR:1880/admin/`). Placa sem cadastro aparece no local `sem-local`, com o próprio `device_id` como nome. Legendas e valores atuais mostram o nome amigável.
 
 Pontos gravados antes do cadastro não têm as tags `local` e `nome` e ficam fora dos painéis.
 

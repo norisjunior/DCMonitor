@@ -36,11 +36,11 @@ docker compose exec mosquitto sh -c \
   'mosquitto_sub -p 1884 -u "$MQTT_ADMIN_USER" -P "$MQTT_ADMIN_PASSWORD" -t "fdctmon/#" -v'
 ```
 
-Gere as credenciais de duas placas simuladas, `esp32-0000000000A1` e `esp32-0000000000A2`, pela página `http://localhost:1880/admin/` (formulário "Placa nova: ID mostrado na serial") ou pela API:
+Gere as credenciais de duas placas simuladas, `esp32-0000000000A1` e `esp32-0000000000A2`, pela página `https://localhost:1880/admin/` (formulário "Placa nova: ID mostrado na serial") ou pela API:
 
 ```bash
-curl -s -u cadastro -H 'X-DCMonitor: 1' -X POST http://localhost:1880/api/credenciais/esp32-0000000000A1
-curl -s -u cadastro -H 'X-DCMonitor: 1' -X POST http://localhost:1880/api/credenciais/esp32-0000000000A2
+curl -s --cacert pki/ca/ca.crt -u cadastro -H 'X-DCMonitor: 1' -X POST https://localhost:1880/api/credenciais/esp32-0000000000A1
+curl -s --cacert pki/ca/ca.crt -u cadastro -H 'X-DCMonitor: 1' -X POST https://localhost:1880/api/credenciais/esp32-0000000000A2
 ```
 
 O `curl` pede a senha do login do cadastro; troque `cadastro` pelo seu `CADASTRO_ADMIN_USER`, se for outro. O cabeçalho `X-DCMonitor: 1` é obrigatório (403 sem ele), e só IDs no formato do firmware (`esp32-` + 12 dígitos hexadecimais maiúsculos) são aceitos. A resposta traz `senha` e `linha_serial`; guarde as duas senhas para os passos seguintes.
@@ -105,8 +105,8 @@ Outras verificações:
 3. Porta 1883: `docker compose ps` não a lista e `ss -lntp` no host não mostra nada escutando nela.
 4. Anônimo na 1884: `docker compose exec mosquitto env HOME=/tmp mosquitto_pub -p 1884 -t x -m y` é recusado. O `HOME=/tmp` evita que o `mosquitto_pub` leia o login do administrador em `/root/.config/mosquitto_pub`.
 5. Gerar de novo: o mesmo `POST` para `esp32-0000000000A1` responde 409 e a senha atual continua valendo.
-6. Troca de senha: "Trocar senha" na página, ou `curl -s -u cadastro -H 'X-DCMonitor: 1' -X PUT http://localhost:1880/api/credenciais/esp32-0000000000A1`. A senha antiga passa a ser recusada; a nova funciona.
-7. Revogação: `curl -s -u cadastro -H 'X-DCMonitor: 1' -X DELETE http://localhost:1880/api/credenciais/esp32-0000000000A2`. A senha de `esp32-0000000000A2` passa a ser recusada. Repetir o `DELETE` responde 200 com `"revogada": false`.
+6. Troca de senha: "Trocar senha" na página, ou `curl -s --cacert pki/ca/ca.crt -u cadastro -H 'X-DCMonitor: 1' -X PUT https://localhost:1880/api/credenciais/esp32-0000000000A1`. A senha antiga passa a ser recusada; a nova funciona.
+7. Revogação: `curl -s --cacert pki/ca/ca.crt -u cadastro -H 'X-DCMonitor: 1' -X DELETE https://localhost:1880/api/credenciais/esp32-0000000000A2`. A senha de `esp32-0000000000A2` passa a ser recusada. Repetir o `DELETE` responde 200 com `"revogada": false`.
 8. Sem o cabeçalho: os mesmos comandos sem `-H 'X-DCMonitor: 1'` respondem 403.
 9. ID fora do formato: `POST /api/credenciais/node-red` (o administrador) ou `/api/credenciais/teste-001` responde 400.
 10. Broker parado: com `docker compose stop mosquitto`, `GET /api/credenciais` responde 504 em cerca de 5 a 7 s e a página mostra "Credenciais MQTT indisponíveis". Suba o broker de novo.
@@ -125,13 +125,13 @@ Ao terminar, revogue as credenciais de teste e apague as variáveis `SENHA` e `S
 
 ## Cadastro de dispositivos
 
-1. Abra `http://localhost:1880/admin/`. O navegador pede usuário e senha: use `CADASTRO_ADMIN_USER` e a senha que gerou `CADASTRO_ADMIN_PASSWORD_HASH`. O login do editor não serve.
+1. Abra `https://localhost:1880/admin/`. O navegador pede usuário e senha: use `CADASTRO_ADMIN_USER` e a senha que gerou `CADASTRO_ADMIN_PASSWORD_HASH`. O login do editor não serve.
 2. As placas publicadas acima aparecem como "novo", com situação e última leitura.
 3. Crie um local (nome + código), dê nome a `esp32-0000000000A1`, escolha o local e salve. O arquivo `cadastro/dispositivos.json` passa a ter `revisao` 1.
 4. Publique de novo para `esp32-0000000000A1`. No InfluxDB e no Grafana, a nova medição sai com o `local` e o `nome` escolhidos, sem reiniciar o Node-RED.
 5. Abra a página em duas abas, salve em uma e depois tente salvar na outra: a segunda recebe a mensagem de que o cadastro foi alterado em outra janela (HTTP 409).
 6. Tente remover um local que ainda tem placa: o botão fica desabilitado.
-7. Confirme que a API exige login: `curl -i http://localhost:1880/api/cadastro` responde 401.
+7. Confirme que a API exige login: `curl -i --cacert pki/ca/ca.crt https://localhost:1880/api/cadastro` responde 401.
 8. Pare o Node-RED, deixe `cadastro/dispositivos.json` com JSON inválido e suba de novo: a página mostra o motivo, não permite salvar e a telemetria continua gravando com `sem-local`. Restaure o arquivo e reinicie o Node-RED.
 
 ## Falhas

@@ -122,7 +122,7 @@ O local e o nome amigável de cada placa ficam em `dispositivos.json`, num diret
 - Locais têm código (slug imutável, minúsculas, números e hífen, até 32 caracteres) e nome (até 48 caracteres). O código `sem-local` é reservado.
 - Nome do dispositivo: até 64 caracteres. Nome e local são opcionais.
 - O Node-RED lê o arquivo ao iniciar e mantém o cadastro em memória. Sem o arquivo, cria um cadastro vazio. Com JSON inválido ou erro de leitura, o cadastro não carrega, a página mostra o motivo e a telemetria continua gravando sem local e nome.
-- A página `http://SERVIDOR:1880/admin/` é servida pelo próprio Node-RED (`httpStatic`) e usa `GET /api/cadastro` e `PUT /api/cadastro`. O login é próprio, separado do editor. O `PUT` exige a revisão atual (409 se outra janela salvou antes), grava o arquivo e só então aplica o cadastro em memória: vale para as próximas medições, sem reiniciar.
+- A página `https://SERVIDOR:1880/admin/` é servida pelo próprio Node-RED (`httpStatic`) e usa `GET /api/cadastro` e `PUT /api/cadastro`. O login é próprio, separado do editor. O `PUT` exige a revisão atual (409 se outra janela salvou antes), grava o arquivo e só então aplica o cadastro em memória: vale para as próximas medições, sem reiniciar.
 - A página lista as placas vistas desde o último reinício do Node-RED, com situação e última leitura, as cadastradas e as que têm credencial MQTT. Placa vista sem cadastro aparece como "novo".
 
 A medição gravada no InfluxDB recebe as tags `local` (código do local, ou `sem-local`) e `nome` (nome amigável, ou o próprio `device_id`). O Zabbix não muda: host igual ao `device_id`, mesmas chaves.
@@ -132,7 +132,7 @@ A medição gravada no InfluxDB recebe as tags `local` (código do local, ou `se
 - `8883/tcp`: todas as interfaces do host → Mosquitto, somente TLS, com usuário e senha por placa; usado pelos ESP32. A 1883 não existe mais.
 - `1884/tcp`: somente rede Docker, sem TLS, com login `MQTT_ADMIN_USER`; não publicado no host. A credencial do Node-RED vem do ambiente, via `flows_cred.json`, e não aparece no fluxo versionado.
 - `123/udp`: chrony do host, para as redes das placas.
-- `1880`, `3000`, `5678`, `8086`: interfaces administrativas; firewall deve limitar à rede de gestão. A página de cadastro usa a mesma porta `1880` do editor, com login separado. A senha MQTT gerada trafega nessa porta, sem TLS.
+- `1880`, `3000`, `5678`, `8086`: interfaces administrativas; firewall deve limitar à rede de gestão. A página de cadastro usa a mesma porta `1880` do editor, com login separado. A 1880 serve só HTTPS, com certificado da CA do DCMonitor (`pki/node-red/`); a senha MQTT gerada trafega cifrada.
 - InfluxDB não recebe escrita direta dos dispositivos.
 - Node-RED lê o token InfluxDB do ambiente; ele não aparece no fluxo versionado e só trafega na rede interna do Compose.
 - O envio ao Zabbix usa o protocolo trapper por socket, sem executar processo externo nem compor linha de comando.
