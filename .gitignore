@@ -21,6 +21,10 @@ backups/
 # Cadastro de dispositivos: dado operacional editado pela página /admin/
 cadastro/
 
+# PKI do broker (chave da CA e do servidor) e credenciais MQTT das placas
+pki/
+mqtt-seguranca/
+
 # Editor
 .vscode/
 *.swp

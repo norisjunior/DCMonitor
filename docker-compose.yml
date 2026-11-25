@@ -5,31 +5,28 @@ services:
     image: eclipse-mosquitto:2.0.22
     restart: unless-stopped
     ports:
-      - "${BIND_ADDRESS:-0.0.0.0}:1883:1883"
+      # Dispositivos, somente TLS. A porta 1884 (interna) não é publicada.
+      - "${BIND_ADDRESS:-0.0.0.0}:8883:8883"
     environment:
-      MQTT_USERNAME: ${MQTT_USERNAME:?MQTT_USERNAME obrigatorio}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:?MQTT_PASSWORD obrigatorio}
-    command:
-      - sh
-      - -c
-      - |
-        rm -f /tmp/mosquitto_passwd
-        mosquitto_passwd -b -c /tmp/mosquitto_passwd "$$MQTT_USERNAME" "$$MQTT_PASSWORD"
-        chown mosquitto:mosquitto /tmp/mosquitto_passwd
-        chmod 0640 /tmp/mosquitto_passwd
-        cp /mosquitto/config/acl /tmp/mosquitto_acl
-        chown mosquitto:mosquitto /tmp/mosquitto_acl
-        chmod 0640 /tmp/mosquitto_acl
-        exec mosquitto -c /mosquitto/config/mosquitto.conf
+      MQTT_ADMIN_USER: ${MQTT_ADMIN_USER:-node-red}
+      MQTT_ADMIN_PASSWORD: ${MQTT_ADMIN_PASSWORD:?MQTT_ADMIN_PASSWORD obrigatorio}
+    command: ["sh", "/mosquitto/config/iniciar.sh"]
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro,Z
-      - ./mosquitto/acl:/mosquitto/config/acl:ro,Z
+      - ./mosquitto/iniciar.sh:/mosquitto/config/iniciar.sh:ro,Z
+      # Gerados por scripts/gerar_certificados.sh.
+      - ${MQTT_CERTS_DIR:-./pki/mosquitto}:/mosquitto/certs:ro,Z
+      # Credenciais das placas (só hashes), no host para backup direto.
+      # Crie antes: install -d -o 1883 -g 1883 ./mqtt-seguranca
+      - ${MQTT_SEGURANCA_DIR:-./mqtt-seguranca}:/mosquitto/seguranca:Z
       - mosquitto_data:/mosquitto/data
     healthcheck:
+      # Login lido de /root/.config/mosquitto_pub (criado pelo iniciar.sh), fora do ps.
       test: ["CMD", "mosquitto_pub", "-h", "localhost", "-p", "1884", "-t", "dcmonitor/health", "-m", "ok"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 20s
 
   influxdb:
     image: influxdb:2.7-alpine
@@ -73,6 +70,10 @@ services:
       INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:?INFLUXDB_TOKEN obrigatorio}
       ZABBIX_SERVER: ${ZABBIX_SERVER:-10.32.8.57}
       ZABBIX_PORT: ${ZABBIX_PORT:-10051}
+      # Segundo servidor Zabbix. Definido como vazio no .env, o envio é desligado.
+      ZABBIX_SERVER_2: ${ZABBIX_SERVER_2-10.32.8.69}
+      MQTT_ADMIN_USER: ${MQTT_ADMIN_USER:-node-red}
+      MQTT_ADMIN_PASSWORD: ${MQTT_ADMIN_PASSWORD:?MQTT_ADMIN_PASSWORD obrigatorio}
     volumes:
       - node_red_data:/data
       # Cadastro de dispositivos editado pela página /admin/. Diretório do host,
