@@ -21,8 +21,8 @@ function carregar(id) {
   // Módulos declarados no "Setup" do nó (libs) viram parâmetros, como no runtime.
   const libs = (n.libs || []).map((l) => l.var);
   // eslint-disable-next-line no-new-func
-  const corpo = new Function("msg", "node", "global", "Buffer", ...libs, n.func);
-  return (msg, globalInicial = {}, modulos = {}) => {
+  const corpo = new Function("msg", "node", "global", "env", "Buffer", ...libs, n.func);
+  return (msg, globalInicial = {}, modulos = {}, ambiente = {}) => {
     const store = { ...globalInicial };
     const node = {
       erros: [],
@@ -31,12 +31,14 @@ function carregar(id) {
       error(m) { this.erros.push(String(m)); },
       warn(m) { this.avisos.push(String(m)); },
       status(s) { this.ultimoStatus = s; },
+      log(m) { this.avisos.push(String(m)); },
     };
     const global = {
       get: (k) => store[k],
       set: (k, v) => { store[k] = v; },
     };
-    const saida = corpo(msg, node, global, Buffer, ...libs.map((v) => modulos[v]));
+    const env = { get: (k) => ambiente[k] };
+    const saida = corpo(msg, node, global, env, Buffer, ...libs.map((v) => modulos[v]));
     return { saida, node, store };
   };
 }
@@ -319,6 +321,173 @@ teste("GET devolve cadastro, erro e leituras", () => {
   assert.equal(saida.payload.cadastro.revisao, 3);
   assert.equal(saida.payload.erro, null);
   assert.equal(saida.payload.vistos[ID].ultimo, 1);
+});
+
+// ------------------------------------------------------- segundo Zabbix
+console.log("Segundo Zabbix");
+const zabbix2 = carregar("zabbix2-ativo");
+
+teste("sem ZABBIX_SERVER_2 os itens não seguem", () => {
+  assert.equal(zabbix2({ payload: [] }, {}, {}, {}).saida, null);
+});
+
+teste("com ZABBIX_SERVER_2 os itens seguem", () => {
+  const m = { payload: [["h", "temp", "1"]] };
+  assert.equal(zabbix2(m, {}, {}, { ZABBIX_SERVER_2: "10.32.8.69" }).saida, m);
+});
+
+// --------------------------------------------------- credenciais MQTT
+console.log("Credenciais MQTT");
+const cryptoReal = require("crypto");
+const gerarCred = carregar("cred-gerar");
+const trocarCred = carregar("cred-trocar");
+const revogarCred = carregar("cred-revogar");
+const listarCred = carregar("cred-listar");
+const responderCred = carregar("cred-responder");
+const expirarCred = carregar("cred-expirar");
+const AMB = { MQTT_ADMIN_USER: "node-red" };
+const rota = (id, headers = { "x-dcmonitor": "1" }) => ({ req: { params: { id }, headers }, res: {} });
+
+teste("gerar senha monta papel restrito ao device_id e cliente com senha", () => {
+  const { saida, store } = gerarCred(rota(ID), {}, { crypto: cryptoReal }, AMB);
+  assert.equal(saida[1], null);
+  assert.equal(saida[0].topic, "$CONTROL/dynamic-security/v1");
+  const cmds = JSON.parse(saida[0].payload).commands;
+  assert.deepEqual(cmds.map((c) => c.command), ["createRole", "createClient"]);
+  const acls = cmds[0].acls.map((a) => `${a.acltype} ${a.topic}`);
+  assert.deepEqual(acls, [
+    `publishClientSend fdctmon/${ID}/data`,
+    `publishClientSend fdctmon/${ID}/status`,
+    `subscribeLiteral fdctmon/${ID}/cmd`,
+    `publishClientReceive fdctmon/${ID}/cmd`,
+  ]);
+  assert.equal(cmds[1].username, ID);
+  assert.match(cmds[1].password, /^[A-Za-z0-9_-]{32}$/);
+  const corr = cmds[0].correlationData;
+  assert.ok(cmds.every((c) => c.correlationData === corr));
+  assert.equal(store.pendentesDynsec[corr].extra.senha, cmds[1].password);
+});
+
+teste("trocar senha apaga e recria cliente e papel", () => {
+  const { saida } = trocarCred(rota(ID), {}, { crypto: cryptoReal }, AMB);
+  const cmds = JSON.parse(saida[0].payload).commands;
+  assert.deepEqual(cmds.map((c) => c.command), ["deleteClient", "deleteRole", "createRole", "createClient"]);
+});
+
+teste("sem o cabeçalho da página a requisição é recusada (CSRF, 403)", () => {
+  for (const f of [gerarCred, trocarCred, revogarCred, listarCred]) {
+    const { saida } = f(rota(ID, {}), {}, { crypto: cryptoReal }, AMB);
+    assert.equal(saida[0], null);
+    assert.equal(saida[1].statusCode, 403);
+  }
+});
+
+teste("segunda operação para a mesma placa em andamento responde 409", () => {
+  const { store } = gerarCred(rota(ID), {}, { crypto: cryptoReal }, AMB);
+  const { saida } = trocarCred(rota(ID), store, { crypto: cryptoReal }, AMB);
+  assert.equal(saida[1].statusCode, 409);
+});
+
+teste("gerar senha para o usuário administrador é recusado (400)", () => {
+  const { saida } = gerarCred(rota("node-red"), {}, { crypto: cryptoReal }, AMB);
+  assert.equal(saida[0], null);
+  assert.equal(saida[1].statusCode, 400);
+});
+
+teste("ID inválido na rota é recusado (400)", () => {
+  for (const id of ["", "a/b", "#", "teste-001", "esp32-e0477d077000", "esp32-E0477D07700", "x".repeat(65)]) {
+    const { saida } = revogarCred(rota(id), {}, { crypto: cryptoReal }, AMB);
+    assert.equal(saida[1].statusCode, 400, `"${id}"`);
+  }
+});
+
+function ciclo(funcao, msg, respostasDoBroker) {
+  const { saida, store } = funcao(msg, {}, { crypto: cryptoReal }, AMB);
+  const corr = JSON.parse(saida[0].payload).commands[0].correlationData;
+  const responses = respostasDoBroker.map((r) => ({ ...r, correlationData: corr }));
+  return responderCred({ payload: { responses } }, store, {}, AMB);
+}
+
+teste("resposta de sucesso devolve a senha e a linha da serial", () => {
+  const { saida, store } = ciclo(gerarCred, rota(ID), [
+    { command: "createRole" },
+    { command: "createClient" },
+  ]);
+  const r = saida[0][0];
+  assert.equal(r.statusCode, 200);
+  assert.match(r.payload.linha_serial, new RegExp(`^credencial ${ID} [A-Za-z0-9_-]{32}$`));
+  assert.deepEqual(store.pendentesDynsec, {});
+});
+
+teste("erro do broker ao criar o cliente responde 502 sem expor senha", () => {
+  const { saida } = ciclo(trocarCred, rota(ID), [
+    { command: "deleteClient" }, { command: "deleteRole" }, { command: "createRole" },
+    { command: "createClient", error: "Internal error" },
+  ]);
+  assert.equal(saida[0][0].statusCode, 502);
+  assert.equal(saida[0][0].payload.senha, undefined);
+});
+
+teste("gerar para placa que já tem senha responde 409 e não troca nada", () => {
+  const { saida } = ciclo(gerarCred, rota(ID), [
+    { command: "createRole", error: "Role already exists" },
+    { command: "createClient", error: "Client already exists" },
+  ]);
+  assert.equal(saida[0][0].statusCode, 409);
+  assert.equal(saida[0][0].payload.senha, undefined);
+});
+
+teste("gerar com papel remanescente e cliente novo dá certo", () => {
+  const { saida } = ciclo(gerarCred, rota(ID), [
+    { command: "createRole", error: "Role already exists" },
+    { command: "createClient" },
+  ]);
+  assert.equal(saida[0][0].statusCode, 200);
+});
+
+teste("revogar placa sem credencial é idempotente", () => {
+  const { saida } = ciclo(revogarCred, rota(ID), [
+    { command: "deleteClient", error: "Client not found" }, { command: "deleteRole", error: "Role not found" },
+  ]);
+  assert.equal(saida[0][0].statusCode, 200);
+  assert.equal(saida[0][0].payload.revogada, false);
+});
+
+teste("listar mostra só placas (sem administrador nem n8n) e ativo/desativado", () => {
+  const OUTRA = "esp32-0000000000A2";
+  const { saida } = ciclo(listarCred, { req: { headers: { "x-dcmonitor": "1" } }, res: {} }, [{
+    command: "listClients",
+    data: { clients: [
+      { username: "node-red" },
+      { username: "n8n" },
+      { username: ID, textdescription: "Senha gerada em 2026-11-25T18:00:00.000Z" },
+      { username: OUTRA, disabled: true },
+    ] },
+  }]);
+  const { clientes } = saida[0][0].payload;
+  assert.deepEqual(Object.keys(clientes).sort(), [ID, OUTRA].sort());
+  assert.equal(clientes[ID].ativo, true);
+  assert.equal(clientes[OUTRA].ativo, false);
+});
+
+teste("resposta com correlação desconhecida é ignorada", () => {
+  const { saida } = responderCred(
+    { payload: { responses: [{ command: "listClients", correlationData: "x" }] } }, {}, {}, AMB
+  );
+  assert.deepEqual(saida, [[]]);
+});
+
+teste("pendência sem resposta em 5 s vira 504", () => {
+  const pendentes = {
+    velho: { msg: { res: {} }, tipo: "listar", criado: Date.now() - 6000 },
+    troca: { msg: { res: {} }, tipo: "trocar", extra: { id: ID }, criado: Date.now() - 6000 },
+    novo: { msg: { res: {} }, tipo: "listar", criado: Date.now() },
+  };
+  const { saida, store } = expirarCred({}, { pendentesDynsec: pendentes });
+  assert.equal(saida[0].length, 2);
+  assert.ok(saida[0].every((m) => m.statusCode === 504));
+  assert.match(saida[0][1].payload.erro, /incerto/);
+  assert.deepEqual(Object.keys(store.pendentesDynsec), ["novo"]);
 });
 
 console.log(`\n${total - falhas}/${total} testes aprovados.`);

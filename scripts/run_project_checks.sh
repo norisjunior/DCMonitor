@@ -33,14 +33,22 @@ fi
 
 if command -v pio >/dev/null 2>&1; then
   echo "[esp32] compilação"
+  # Os exemplos copiados só para compilar saem mesmo se o build falhar: um
+  # ca_cert.hpp de exemplo esquecido geraria firmware com CA inválida.
+  limpar_exemplos() {
+    if [ "${cleanup_config:-0}" = "1" ]; then rm -f ESP32/include/config.hpp; fi
+    if [ "${cleanup_ca:-0}" = "1" ]; then rm -f ESP32/include/ca_cert.hpp; fi
+  }
+  trap limpar_exemplos EXIT
   if [ ! -f ESP32/include/config.hpp ]; then
     cp ESP32/include/config.example.hpp ESP32/include/config.hpp
     cleanup_config=1
   fi
-  pio run -d ESP32
-  if [ "${cleanup_config:-0}" = "1" ]; then
-    rm -f ESP32/include/config.hpp
+  if [ ! -f ESP32/include/ca_cert.hpp ]; then
+    cp ESP32/include/ca_cert.example.hpp ESP32/include/ca_cert.hpp
+    cleanup_ca=1
   fi
+  pio run -d ESP32
 else
   echo "[esp32] PlatformIO ausente; compilação não executada"
 fi
