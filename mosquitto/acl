@@ -1,0 +1,11 @@
+# ACL da porta 1883 (dispositivos).
+#
+# %c é o client-id da conexão. O firmware usa o device_id como client-id, então
+# cada placa só escreve e lê no próprio ramo de tópicos. Publicação negada é
+# descartada pelo broker sem derrubar a conexão (MQTT 3.1.1).
+#
+# A porta interna 1884 (Node-RED, n8n) não usa este arquivo.
+
+pattern write fdctmon/%c/data
+pattern write fdctmon/%c/status
+pattern read fdctmon/%c/cmd
