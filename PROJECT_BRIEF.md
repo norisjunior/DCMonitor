@@ -28,10 +28,11 @@
 | RF-001 | ESP32 lê DHT22 e publica temperatura, umidade e índice de calor via MQTT a cada ~60 s, em deep sleep entre ciclos | Alta | Payload JSON válido visível em `fdctmon/{device_id}/data`, com `device_id`, `temp`, `umid`, `ic`, `sensor=DHT22` e `schema_version=1` |
 | RF-003 | Node-RED recebe MQTT, valida e grava no InfluxDB local | Alta | Cada mensagem válida gera pontos na measurement `ambiente` com as tags `device_id`, `local` e `nome`; payload inválido ou com `device_id` diferente do tópico é rejeitado e aparece nos logs |
 | RF-004 | Grafana exibe temperatura, umidade, índice de calor e histórico | Alta | Datasource InfluxDB e dashboard `DCMonitor - Ambiente` são provisionados ao subir a stack |
-| RF-005 | Node-RED envia a telemetria validada ao Zabbix | Alta | Itens trapper `temp`, `umid`, `headindex` e `rssi` do host homônimo ao `device_id` são atualizados; a ausência de `ic`/`rssi` não interrompe os demais itens |
+| RF-005 | Node-RED envia a telemetria validada ao Zabbix | Alta | Itens trapper `temp`, `umid`, `headindex` e `rssi` do host homônimo ao `device_id` são atualizados nos servidores `ZABBIX_SERVER` e, se definido, `ZABBIX_SERVER_2`; a ausência de `ic`/`rssi` não interrompe os demais itens |
 | RF-006 | Serviços sobem no Oracle Linux 9 com um único Compose | Alta | `docker compose up -d --build` inicia os cinco serviços e `docker compose ps` indica serviços saudáveis |
 | RF-007 | Estado do ESP32 é publicado no tópico de status | Média | `fdctmon/{device_id}/status` recebe `online` retido a cada despertar; o Last Will `offline` só é publicado se a sessão cair sem `DISCONNECT`; ausência da placa é detectada pela falta de telemetria |
-| RF-008 | Cadastro de dispositivos pela página `/admin/` | Alta | Placa nova aparece como "novo"; nome amigável e local definidos na página são gravados em `dispositivos.json` no host e valem para a medição seguinte, sem reiniciar serviços nem regravar o firmware |
+| RF-008 | Cadastro de dispositivos pela página `/admin/` | Alta | Placa com credencial que já enviou dados aparece na página; nome amigável e local definidos ali são gravados em `dispositivos.json` no host e valem para a medição seguinte, sem reiniciar serviços nem regravar o firmware |
+| RF-009 | Credencial MQTT própria por dispositivo, sobre TLS | Alta | Placa sem senha não publica e espera a linha da serial; com a linha gerada em `/admin/`, publica pela 8883 com TLS; senha trocada ou revogada deixa de valer na hora; publicação em tópico de outra placa é descartada |
 
 ## 4. Requisitos não funcionais
 
@@ -44,6 +45,7 @@
 | RNF-005 | Observabilidade | Cada etapa ESP32 → MQTT → Node-RED → InfluxDB/Zabbix → Grafana pode ser verificada separadamente por comando ou UI |
 | RNF-006 | Simplicidade | Firmware didático em um arquivo principal, configuração separada e fluxo de um dado rastreável sem frameworks adicionais |
 | RNF-007 | Rede | Portas necessárias são publicadas explicitamente em `0.0.0.0`; firewall limita as origens; porta MQTT interna `1884` não é exposta pelo host |
+| RNF-008 | Hora | Placas sincronizam com o NTP do servidor; sem NTP, o display mostra `--:--` e a coleta continua |
 
 ## 5. Decisões confirmadas
 
@@ -63,8 +65,12 @@
 | D-021 | Um único binário para toda a frota; identidade derivada do chip | Gravar uma placa nova não exige editar `config.hpp`; nomes legíveis ficam no servidor, não no firmware (fonte: cadastro, D-025) |
 | D-022 | ESP32 em deep sleep de 60 s entre ciclos; sessão MQTT por ciclo com desconexão limpa | Cerca de 1.400 mensagens/dia por placa; status retido fica `online`; queda detectada por `nodata` no Zabbix; display mostra o horário da medição |
 | D-023 | Tópicos `fdctmon/{device_id}/data`, `/status` e `/cmd` (reservado); local fora do tópico | Firmware 1.5.0 igual para a frota; placa muda de lugar sem regravação |
-| D-024 | ACL do Mosquitto por client-id, credencial única da frota | Cada placa só publica no próprio ramo; não é identidade forte |
+| D-024 | ACL do Mosquitto por client-id, credencial única da frota | Substituída por D-026 em 2026-11-25 |
 | D-025 | Cadastro de local e nome em `dispositivos.json` no host, editado pela página `/admin/` do Node-RED | Tags `local` e `nome` no InfluxDB e filtros no Grafana; diretório do host com backup por cópia simples |
+| D-026 | Credencial MQTT por dispositivo (usuário = `device_id`) pelo plugin dynamic security, gerida na página `/admin/` e entregue pela serial | Identidade autenticada por placa; placa nova só conecta depois de receber a senha |
+| D-027 | TLS na porta 8883 com CA própria; `ca_cert.hpp` gerado por `scripts/gerar_certificados.sh` | 1883 fechada; renovação do servidor sem regravar placas; caminho aberto para mTLS |
+| D-028 | Servidor como NTP das placas (chrony) | Horário do display em rede apartada; o TLS da placa não depende de relógio nem verifica expiração |
+| D-029 | Segundo servidor Zabbix (`ZABBIX_SERVER_2`) | Mesmos hosts e itens nos dois servidores |
 
 ## 6. Restrições
 

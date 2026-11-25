@@ -4,23 +4,27 @@ O fluxo `flows.json` e o `settings.js` são copiados pela imagem para o volume `
 
 | Arquivo | Conteúdo |
 |---|---|
-| `flows.json` | abas "DCMonitor - MQTT para InfluxDB e Zabbix" e "Cadastro de dispositivos" |
-| `flows_cred.json` | referência `${INFLUXDB_TOKEN}`, sem segredo |
+| `flows.json` | abas "DCMonitor - MQTT para InfluxDB e Zabbix", "Cadastro de dispositivos" e "Credenciais MQTT" |
+| `flows_cred.json` | referências `${INFLUXDB_TOKEN}`, `${MQTT_ADMIN_USER}` e `${MQTT_ADMIN_PASSWORD}`, sem segredo |
 | `settings.js` | login do editor, login da página de cadastro, `httpStatic` |
-| `admin/index.html`, `admin/app.js` | página de cadastro, copiada para `/opt/dcmonitor/admin` na imagem |
+| `admin/index.html`, `admin/app.js` | página de cadastro e credenciais, copiada para `/opt/dcmonitor/admin` na imagem |
 | `Dockerfile` | instala os nós extras e copia os arquivos acima |
 
 ## Telemetria
 
 Responsabilidades:
 
-1. Assinar `fdctmon/+/data` no Mosquitto interno `mosquitto:1884`.
+1. Assinar `fdctmon/+/data` no Mosquitto interno `mosquitto:1884`, com o login `MQTT_ADMIN_USER`/`MQTT_ADMIN_PASSWORD`.
 2. Interpretar e validar o JSON, exigindo que o `device_id` do payload seja igual ao do tópico.
 3. Acrescentar `local` e `nome` a partir do cadastro de dispositivos.
 4. Gravar a medição no InfluxDB pelo nó `influxdb out`.
-5. Enviar os mesmos valores aos itens trapper do Zabbix.
+5. Enviar os mesmos valores aos itens trapper do Zabbix e, se configurado, a um segundo servidor Zabbix.
 
 A saída 1 do nó `Validar telemetria` grava no InfluxDB; a saída 2 monta os itens do Zabbix. As ramificações são independentes: falha no Zabbix não impede a gravação, e o contrário também vale. Erros dos dois caminhos chegam ao nó `catch` `Erros do fluxo`.
+
+Os itens do Zabbix seguem para `Enviar ao Zabbix` e para `Zabbix 2 configurado?`. Esse nó só deixa passar quando `ZABBIX_SERVER_2` tem valor; daí os itens vão a `Enviar ao Zabbix 2`, com os mesmos hosts, chaves e `ZABBIX_PORT`. Sem a variável no `.env`, o Compose usa `10.32.8.69`; com `ZABBIX_SERVER_2=` (vazia), o segundo envio fica desligado.
+
+Dois nós de debug ajudam no diagnóstico: `MSG RAW ESP32` (ativo) mostra na barra lateral cada payload recebido; `MSG ZABBIX` (inativo) mostra os itens enviados ao Zabbix. Ative ou desative pelo botão do nó na UI.
 
 ## Nós instalados na imagem
 
@@ -41,11 +45,13 @@ O fluxo versionado não contém endereços nem segredos. O Node-RED substitui `$
 | `INFLUXDB_ORG`, `INFLUXDB_BUCKET` | nó `Gravar no InfluxDB` |
 | `INFLUXDB_TOKEN` | credencial do nó de configuração, via `flows_cred.json` |
 | `ZABBIX_SERVER`, `ZABBIX_PORT` | destino do nó `Enviar ao Zabbix` |
+| `ZABBIX_SERVER_2` | destino do nó `Enviar ao Zabbix 2` (mesma `ZABBIX_PORT`); padrão `10.32.8.69` no Compose; definida vazia no `.env`, desliga |
+| `MQTT_ADMIN_USER`, `MQTT_ADMIN_PASSWORD` | login do nó de configuração `Mosquitto interno`, via `flows_cred.json`; `MQTT_ADMIN_USER` também é omitido da lista de credenciais |
 | `CADASTRO_ADMIN_USER`, `CADASTRO_ADMIN_PASSWORD_HASH` | login da página `/admin/` e da API `/api/cadastro`, em `settings.js`; sem o hash o Node-RED não sobe |
 
 O host dos itens trapper não vem do ambiente: cada medição é enviada ao host cujo nome é igual ao `device_id` do dispositivo. O campo `Default hostname` do nó fica vazio de propósito — ele só valeria para itens enviados sem host.
 
-`flows_cred.json` guarda apenas o texto `${INFLUXDB_TOKEN}`. O Node-RED aceita o arquivo em texto puro, resolve a variável a cada início e regrava o arquivo cifrado com `NODE_RED_CREDENTIAL_SECRET`. O token não fica no repositório nem na imagem.
+`flows_cred.json` guarda apenas os textos `${INFLUXDB_TOKEN}`, `${MQTT_ADMIN_USER}` e `${MQTT_ADMIN_PASSWORD}`. O Node-RED aceita o arquivo em texto puro, resolve as variáveis a cada início e regrava o arquivo cifrado com `NODE_RED_CREDENTIAL_SECRET`. Token e senha não ficam no repositório nem na imagem.
 
 ## Modelo gravado
 
@@ -75,11 +81,41 @@ A aba "Cadastro de dispositivos" mantém o local e o nome amigável de cada plac
 
 A página `http://SERVIDOR:1880/admin/` (`admin/index.html` e `admin/app.js`) é servida pelo `httpStatic` do `settings.js`, com cabeçalhos de segurança (CSP, anti-frame, nosniff) aplicados também à API. Página e API usam o login `CADASTRO_ADMIN_USER`/`CADASTRO_ADMIN_PASSWORD_HASH` (`httpStaticAuth` e `httpNodeAuth`), separado do editor. A página atualiza a situação das placas a cada 30 s.
 
+A tabela da página também tem a coluna "Credencial MQTT", descrita abaixo.
+
 Editar `dispositivos.json` à mão também funciona, com o Node-RED reiniciado em seguida (`docker compose restart node-red`); pela página, a alteração vale sem reiniciar. Para desfazer a última gravação, restaure `dispositivos.json.bak` e reinicie.
+
+## Credenciais MQTT
+
+A aba "Credenciais MQTT" gera, troca e revoga a senha MQTT de cada placa. O usuário MQTT da placa é o próprio `device_id`. A aba fala com o plugin dynamic security do Mosquitto por MQTT, pela porta 1884: publica em `$CONTROL/dynamic-security/v1` e lê a resposta em `$CONTROL/dynamic-security/v1/response`.
+
+| Rota | Efeito |
+|---|---|
+| `GET /api/credenciais` | lista os clientes do broker, menos o administrador: `{ clientes: { <device_id>: { ativo, descricao } } }` |
+| `POST /api/credenciais/:id` | cria cliente, papel e senha; se a placa já tem senha, responde 409 e não altera nada |
+| `PUT /api/credenciais/:id` | troca: apaga e recria cliente e papel com senha nova; a sessão aberta com a senha antiga cai |
+| `DELETE /api/credenciais/:id` | revoga: apaga cliente e papel; repetir sobre placa sem credencial responde 200 com `"revogada": false` |
+
+- O papel criado é `disp-<device_id>`, com permissões literais: publicar em `fdctmon/<device_id>/data` e `/status`, assinar e receber `fdctmon/<device_id>/cmd`.
+- A senha tem 32 caracteres `[A-Za-z0-9_-]`, gerada com `crypto.randomBytes`. A resposta do `POST` e do `PUT` traz `device_id`, `senha`, `gerada_em` e `linha_serial` (`credencial <device_id> <senha>`). Ela volta uma única vez: no broker fica só o hash, e o Node-RED não a registra no log nem a grava em disco (só a mantém em memória até o broker responder).
+- Todas as rotas exigem o cabeçalho `X-DCMonitor: 1`, que a página envia; sem ele, 403. Um cabeçalho próprio obriga o navegador a um preflight CORS, que o Node-RED não autoriza, então outro site não dispara a requisição com o login guardado no navegador (CSRF).
+- Só IDs no formato do firmware são aceitos: `^esp32-[0-9A-F]{12}$`; outro valor responde 400. Assim o administrador, ou um futuro cliente do n8n, nunca é alterado pela API.
+- Uma operação por placa de cada vez: outra requisição para a mesma placa, enquanto a anterior espera o broker, responde 409. Erro do broker responde 502.
+- Cada requisição fica pendente no contexto global `pendentesDynsec` até a resposta do broker, casada pelo `correlationData`. O nó `Expirar comandos` roda a cada 2 s e responde 504 às pendentes há mais de 5 s. Numa geração, troca ou revogação, o 504 avisa que o estado da credencial é incerto: o comando pode ter sido aplicado. Recarregue a página e, se a placa aparecer com senha, use "Trocar senha".
+- As rotas usam o mesmo login da página de cadastro (`httpNodeAuth`).
+
+Na página `/admin/`:
+
+- A coluna "Credencial MQTT" mostra `sem senha`, `ativa desde <data>` ou `desativada`. `desativada` só aparece se o cliente for desativado direto no broker, com `mosquitto_ctrl`.
+- Placa sem senha tem o botão "Gerar senha". Placa com senha tem "Trocar senha" e "Revogar"; os dois pedem um segundo clique de confirmação em até 5 s.
+- O formulário "Placa nova: ID mostrado na serial" gera a senha de uma placa que ainda não publicou nada: basta o `device_id` que ela imprime no monitor serial, por exemplo `esp32-E0477D077000`.
+- Ao gerar, um painel mostra a linha `credencial <device_id> <senha>` uma única vez, com o botão "Copiar linha". Cole essa linha no monitor serial da placa (veja `ESP32/README.md`).
+
+Ao importar `flows.json` pela UI em um volume que já existe, abra o nó de configuração `Mosquitto interno` e escreva `${MQTT_ADMIN_USER}` e `${MQTT_ADMIN_PASSWORD}` nos campos de usuário e senha.
 
 ## Testes das funções
 
-`scripts/test_node_red_functions.js` extrai os nós `function` de `flows.json` e os executa fora do Node-RED, com `msg`, `node` e `global` simulados:
+`scripts/test_node_red_functions.js` extrai os nós `function` de `flows.json` e os executa fora do Node-RED, com `msg`, `node`, `global` e `env` simulados. São 43 testes: telemetria, cadastro, segundo Zabbix e credenciais MQTT.
 
 ```bash
 node scripts/test_node_red_functions.js
