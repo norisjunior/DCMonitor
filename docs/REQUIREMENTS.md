@@ -13,7 +13,8 @@ Substituir PostgreSQL/Flask por uma plataforma de séries temporais no Oracle Li
 Como operador do NOC, quero receber temperatura, umidade e índice de calor a cada minuto para acompanhar o ambiente do datacenter.
 
 - DHT22 conectado ao GPIO 25 e alimentado segundo a especificação do módulo.
-- Tópico `fdctmon/{device_id}/data`; client-id MQTT igual ao `device_id`.
+- Tópico `fdctmon/{device_id}/data`; usuário e client-id MQTT iguais ao `device_id`.
+- Conexão somente por TLS na porta 8883, com a senha própria da placa (HU-008).
 - JSON com `schema_version`, `device_id`, `sensor`, `firmware_version`, `temp`, `umid`, `ic` e `rssi`.
 - Valores em °C e %UR, arredondados em uma casa decimal.
 - Leitura inválida é registrada no serial e não é publicada.
@@ -51,6 +52,7 @@ Como equipe de infraestrutura, quero receber as mesmas medições no Zabbix para
 - O mesmo fluxo Node-RED que grava no InfluxDB envia ao Zabbix, em ramificação separada.
 - São enviadas as chaves `temp`, `umid` e, quando presentes, `headindex` e `rssi`.
 - O host de destino é o próprio `device_id`; servidor e porta vêm do `.env` (`ZABBIX_SERVER`, `ZABBIX_PORT`).
+- Com `ZABBIX_SERVER_2` (padrão `10.32.8.69` no Compose), os mesmos itens vão também a um segundo servidor Zabbix, na mesma `ZABBIX_PORT`. Definida vazia no `.env`, o segundo envio fica desligado.
 - O envio usa o protocolo trapper por socket, sem execução de processo externo.
 - Falha no Zabbix aparece no nó `catch` do fluxo e não impede a gravação no InfluxDB.
 
@@ -75,6 +77,21 @@ Como operador do NOC, quero dar a cada placa um nome amigável e um local para e
 - JSON inválido no disco não derruba a ingestão: a página mostra o motivo e a telemetria continua gravando com `sem-local`.
 - O firmware e o Zabbix não mudam.
 
+### HU-008 — Credencial MQTT por dispositivo e TLS
+
+Como administrador, quero que cada placa tenha senha própria e fale com o broker por TLS, para que uma placa não publique no lugar de outra e eu possa tirar uma placa de serviço sem mexer nas demais.
+
+- O broker só aceita as placas na porta 8883, com TLS e certificado assinado pela CA do DCMonitor (`scripts/gerar_certificados.sh`). A porta 1883 não existe; nenhuma porta aceita conexão anônima.
+- O usuário MQTT da placa é o `device_id`; o papel `disp-<device_id>` só permite publicar em `fdctmon/<device_id>/data` e `/status` e ler `fdctmon/<device_id>/cmd`.
+- Na página `/admin/`, com o login do cadastro, a coluna "Credencial MQTT" mostra `sem senha`, `ativa desde <data>` ou `desativada`.
+- "Gerar senha" (na tabela ou no formulário "Placa nova: ID mostrado na serial") cria cliente e papel (`POST`) e mostra uma única vez a linha `credencial <device_id> <senha>`, com botão "Copiar linha". A senha tem 32 caracteres `[A-Za-z0-9_-]`; o broker guarda só o hash. Gerar para placa que já tem senha responde 409 e não altera nada.
+- "Trocar senha" (`PUT`) e "Revogar" (`DELETE`) pedem um segundo clique de confirmação. Trocar invalida a senha antiga na hora e derruba a sessão aberta; revogar tira o acesso da placa e pode ser repetido sem erro.
+- A API só aceita IDs no formato `^esp32-[0-9A-F]{12}$` (400 caso contrário) e exige o cabeçalho `X-DCMonitor: 1` (403 sem ele). Segunda operação para a mesma placa em andamento: 409. Broker sem resposta em 5 s: 504, avisando que o estado é incerto.
+- A placa sem senha não dorme: mostra `Sem credencial`, imprime no serial o ID e o formato da linha e espera. Enter numa linha vazia repete as instruções. Ao receber a linha com o próprio ID, grava a senha na NVS e reinicia. Linha de outro ID ou malformada é recusada com mensagem.
+- Credencial recusada pelo broker gera aviso no serial; a placa segue medindo e mostrando os valores no display.
+- A placa confere cadeia e nome do certificado do broker, não as datas; publica mesmo sem NTP, com o display em `--:--`.
+- O Node-RED entra na porta interna 1884 com `MQTT_ADMIN_USER`/`MQTT_ADMIN_PASSWORD`. O Mosquitto recusa subir com essa senha em `TROQUE_*` ou com menos de 24 caracteres.
+
 ## Contrato MQTT
 
 Exemplo ESP32:
@@ -84,7 +101,7 @@ Exemplo ESP32:
   "schema_version": 1,
   "device_id": "esp32-A1B2C3D4E5F6",
   "sensor": "DHT22",
-  "firmware_version": "1.5.0",
+  "firmware_version": "1.6.0",
   "temp": 24.7,
   "umid": 53.2,
   "ic": 24.6,
@@ -115,12 +132,23 @@ Tópicos por dispositivo:
 
 Com deep sleep, a ausência do dispositivo é detectada pela falta de telemetria, e um comando futuro em `/cmd` terá de ser mensagem retida, lida pela placa ao acordar.
 
-Na porta 1883, a ACL do Mosquitto só deixa cada cliente escrever em `fdctmon/{client-id}/data` e `/status` e ler `fdctmon/{client-id}/cmd`. O client-id da placa é o `device_id`. Publicação fora do próprio ramo é descartada sem aviso.
+Conexão:
+
+| Item | Valor |
+|---|---|
+| Porta | 8883, somente TLS; certificado do servidor assinado pela CA do DCMonitor, com o `MQTT_HOST` da placa entre os nomes |
+| Usuário | `device_id` |
+| Senha | própria da placa, gerada em `/admin/` e gravada na NVS |
+| Client-id | `device_id` |
+| Permissões | papel `disp-{device_id}`: publica em `fdctmon/{device_id}/data` e `/status`; assina e recebe `fdctmon/{device_id}/cmd` |
+
+Publicação fora do próprio ramo é descartada sem aviso. Consumidores internos usam a porta 1884, sem TLS e só na rede Docker, com `MQTT_ADMIN_USER` (papel `ingestao`: lê `fdctmon/#`, pode publicar em `fdctmon/+/cmd`).
 
 ## Requisitos não funcionais
 
-- Segredos somente em `.env` e `ESP32/include/config.hpp`, ambos ignorados.
-- Porta 1883 autenticada e com ACL por client-id; porta 1884 restrita à rede Docker.
+- Segredos somente em `.env`, `ESP32/include/config.hpp`, `pki/` e `mqtt-seguranca/`, todos ignorados pelo Git. A senha MQTT de cada placa fica só na NVS da placa e, como hash, no broker.
+- Porta 8883 somente TLS, com credencial por placa; porta 1884 restrita à rede Docker e autenticada; porta 1883 fechada.
+- Certificado do servidor renovável sem regravar placas; a chave da CA guardada em cofre.
 - Página de cadastro protegida por login próprio; o cadastro é um arquivo comum do host, copiável para backup.
 - Interfaces fazem bind em `0.0.0.0`; as administrativas são protegidas e liberadas no firewall apenas para a rede de gestão.
 - Logs não devem imprimir senhas, tokens ou cabeçalho de autorização do InfluxDB.
@@ -131,7 +159,8 @@ Na porta 1883, a ACL do Mosquitto só deixa cada cliente escrever em `fdctmon/{c
 
 | Etapa | Verificação |
 |---|---|
-| Dispositivo → MQTT | `mosquitto_sub` na porta interna 1884, de dentro do container do broker |
+| Dispositivo → MQTT | `mosquitto_sub` na porta interna 1884, de dentro do container do broker, com `MQTT_ADMIN_USER` |
+| Credencial → broker | Placa provisionada em `/admin/` publica na 8883; após "Revogar", o serial mostra a credencial recusada |
 | MQTT → Node-RED | Debug/log e status do nó de gravação na UI Node-RED |
 | Node-RED → InfluxDB | Consulta Flux na UI do InfluxDB |
 | InfluxDB → Grafana | Dashboard provisionado com dados por local e nome |

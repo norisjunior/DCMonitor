@@ -4,6 +4,8 @@
 // origem com o editor do Node-RED.
 
 const API = "../api/cadastro";
+const API_CRED = "../api/credenciais";
+const DEVICE = /^esp32-[0-9A-F]{12}$/;
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
 const ATUALIZAR_MS = 30000;
 
@@ -11,6 +13,8 @@ let servidor = null;        // último cadastro salvo { revisao, locais, disposi
 let rascunho = null;        // cópia editável
 let vistos = {};            // { device_id: { ultimo, temp, umid, rssi, firmware } }
 let desvioRelogio = 0;      // agora do servidor - agora do navegador
+let credenciais = {};       // { device_id: { ativo, descricao } }, do broker MQTT
+let credenciaisErro = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -103,7 +107,9 @@ function contarPorLocal(local) {
 function renderDispositivos() {
   const corpo = $("tabela-dispositivos");
   corpo.replaceChildren();
-  const ids = new Set([...Object.keys(rascunho.dispositivos), ...Object.keys(vistos)]);
+  const ids = new Set([
+    ...Object.keys(rascunho.dispositivos), ...Object.keys(vistos), ...Object.keys(credenciais),
+  ]);
   const ordenados = [...ids].sort((a, b) => {
     const na = (temProprio(rascunho.dispositivos, a) && rascunho.dispositivos[a].nome) || a;
     const nb = (temProprio(rascunho.dispositivos, b) && rascunho.dispositivos[b].nome) || b;
@@ -159,13 +165,139 @@ function renderDispositivos() {
     tdLeitura.dataset.leitura = id;
 
     corpo.append(el("tr", {}, [
-      tdSituacao, tdId, el("td", {}, [inputNome]), el("td", {}, [select]), tdLeitura, el("td", {}, [limpar]),
+      tdSituacao, tdId, el("td", {}, [inputNome]), el("td", {}, [select]), tdLeitura,
+      celulaCredencial(id), el("td", {}, [limpar]),
     ]));
   }
   const total = ordenados.length;
   $("resumo-dispositivos").textContent = total
     ? `${total} no total${novos ? `, ${novos} sem cadastro` : ""}`
     : "";
+}
+
+// ------------------------------------------------------------ credenciais
+function geradaEm(descricao) {
+  const m = /(\d{4}-\d{2}-\d{2}T[\d:.]+Z)/.exec(descricao || "");
+  if (!m) return "";
+  const d = new Date(m[1]);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+// Ação destrutiva em dois cliques: o primeiro só arma o botão por 5 s.
+function botaoConfirmado(rotulo, rotuloConfirmar, titulo, acao) {
+  const b = el("button", { type: "button", textContent: rotulo, title: titulo });
+  let armado = null;
+  b.addEventListener("click", () => {
+    if (!armado) {
+      b.textContent = rotuloConfirmar;
+      armado = setTimeout(() => { armado = null; b.textContent = rotulo; }, 5000);
+      return;
+    }
+    clearTimeout(armado);
+    armado = null;
+    b.textContent = rotulo;
+    acao(b);
+  });
+  return b;
+}
+
+function celulaCredencial(id) {
+  const td = el("td");
+  if (credenciaisErro) {
+    td.append(el("span", { className: "muted", textContent: "indisponível" }));
+    return td;
+  }
+  const c = temProprio(credenciais, id) ? credenciais[id] : null;
+  if (!c) {
+    td.append(el("div", { className: "muted", textContent: "sem senha" }));
+    const gerar = el("button", { type: "button", textContent: "Gerar senha" });
+    gerar.addEventListener("click", () => gerarCredencial(id, gerar));
+    td.append(gerar);
+    return td;
+  }
+  const quando = geradaEm(c.descricao);
+  td.append(el("div", {
+    className: c.ativo ? "credencial-ok" : "s-warn",
+    textContent: c.ativo ? `ativa${quando ? ` desde ${quando}` : ""}` : "desativada",
+  }));
+  td.append(el("div", { className: "acoes" }, [
+    botaoConfirmado("Trocar senha", "Confirmar troca",
+      "A senha atual deixa de valer na hora; a placa precisa ser regravada com a nova",
+      (b) => gerarCredencial(id, b, true)),
+    botaoConfirmado("Revogar", "Confirmar revogação",
+      "A placa perde o acesso ao broker imediatamente",
+      (b) => revogarCredencial(id, b)),
+  ]));
+  return td;
+}
+
+// O servidor exige este cabeçalho nas rotas de credenciais (proteção contra CSRF).
+const CABECALHO_CRED = { "X-DCMonitor": "1" };
+
+async function buscarCredenciais() {
+  try {
+    const r = await fetch(API_CRED, { cache: "no-store", credentials: "same-origin", headers: CABECALHO_CRED });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.erro || `O servidor respondeu ${r.status} ao listar as credenciais.`);
+    credenciais = d.clientes || {};
+    credenciaisErro = null;
+  } catch (e) {
+    credenciaisErro = e.message;
+  }
+}
+
+function mostrarSenha(resposta) {
+  $("senha-device").textContent = resposta.device_id;
+  $("senha-linha").textContent = resposta.linha_serial;
+  $("painel-senha").hidden = false;
+  $("painel-senha").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function fecharSenha() {
+  $("senha-linha").textContent = "";
+  $("senha-device").textContent = "";
+  $("painel-senha").hidden = true;
+}
+
+// Gerar (POST) nunca sobrescreve uma senha existente; trocar (PUT) sim.
+async function gerarCredencial(id, botao, trocar = false) {
+  if (botao) botao.disabled = true;
+  try {
+    const r = await fetch(`${API_CRED}/${encodeURIComponent(id)}`, {
+      method: trocar ? "PUT" : "POST", credentials: "same-origin", cache: "no-store",
+      headers: CABECALHO_CRED,
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.erro || `O servidor respondeu ${r.status} ao gerar a senha.`);
+    mostrarErro("");
+    mostrarSenha(d);
+  } catch (e) {
+    mostrarErro(e.message);
+  } finally {
+    await buscarCredenciais();
+    renderDispositivos();
+  }
+}
+
+async function revogarCredencial(id, botao) {
+  if (botao) botao.disabled = true;
+  try {
+    const r = await fetch(`${API_CRED}/${encodeURIComponent(id)}`, {
+      method: "DELETE", credentials: "same-origin", cache: "no-store",
+      headers: CABECALHO_CRED,
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.erro || `O servidor respondeu ${r.status} ao revogar.`);
+    mostrarErro("");
+    mostrarAviso(`Credencial de ${id} revogada. A placa não conecta mais ao broker.`);
+  } catch (e) {
+    mostrarErro(e.message);
+  } finally {
+    await buscarCredenciais();
+    renderDispositivos();
+  }
 }
 
 function garantir(id) {
@@ -251,6 +383,8 @@ async function carregar() {
     mostrarErro(dados.erro);
     servidor = copiar(dados.cadastro);
     rascunho = copiar(dados.cadastro);
+    await buscarCredenciais();
+    if (credenciaisErro) mostrarAviso(`Credenciais MQTT indisponíveis: ${credenciaisErro}`);
     render();
   } catch (e) {
     mostrarErro(e.message);
@@ -316,6 +450,40 @@ async function salvar() {
 }
 
 $("botao-salvar").addEventListener("click", salvar);
+$("botao-fechar-senha").addEventListener("click", fecharSenha);
+$("botao-copiar-linha").addEventListener("click", async () => {
+  const texto = $("senha-linha").textContent;
+  try {
+    await navigator.clipboard.writeText(texto);
+    $("botao-copiar-linha").textContent = "Copiada";
+    setTimeout(() => { $("botao-copiar-linha").textContent = "Copiar linha"; }, 2000);
+  } catch (e) {
+    // Sem permissão de área de transferência: seleciona para Ctrl+C.
+    const faixa = document.createRange();
+    faixa.selectNodeContents($("senha-linha"));
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(faixa);
+  }
+});
+$("form-dispositivo").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const id = $("novo-dispositivo-id").value.trim();
+  if (credenciaisErro) {
+    mostrarErro(`As credenciais não puderam ser consultadas (${credenciaisErro}). Recarregue a página antes de gerar uma senha.`);
+    return;
+  }
+  if (!DEVICE.test(id)) {
+    mostrarErro("ID inválido: copie o ID exatamente como a placa mostra na serial, por exemplo esp32-E0477D077000.");
+    return;
+  }
+  if (temProprio(credenciais, id)) {
+    mostrarErro(`${id} já tem senha. Para trocar, use “Trocar senha” na tabela.`);
+    return;
+  }
+  $("novo-dispositivo-id").value = "";
+  gerarCredencial(id, null);
+});
 $("botao-descartar").addEventListener("click", () => {
   mostrarErro("");
   mostrarAviso("");

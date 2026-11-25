@@ -27,10 +27,16 @@ struct LeituraAmbiente {
 RTC_DATA_ATTR uint32_t ciclosDesdeSincronizacao = 0;
 
 // Qualquer instante antes disso indica relogio nunca sincronizado.
+// O TLS nao depende do relogio: o mbedTLS deste framework e compilado sem
+// verificacao de datas (CONFIG_MBEDTLS_HAVE_TIME_DATE desligado), entao a
+// cadeia e o nome do certificado sao conferidos mesmo sem NTP.
 constexpr time_t INICIO_HORA_VALIDA = 1700000000;  // 2023-11-14
 
 // Folga para o TCP entregar os ultimos pacotes antes de desligar o radio.
 constexpr unsigned long ESPERA_ENVIO_MS = 100;
+
+// Limite de uma linha recebida pela serial no modo de credencial.
+constexpr size_t TAMANHO_LINHA_SERIAL = 160;
 
 bool horaValida() {
   return time(nullptr) > INICIO_HORA_VALIDA;
@@ -127,6 +133,81 @@ void sincronizarHorario() {
   Serial.println("[INFO] Horário sincronizado por NTP.");
 }
 
+void instrucoesCredencial() {
+  Serial.println();
+  Serial.println("[CREDENCIAL] Este dispositivo ainda não tem senha MQTT.");
+  Serial.printf("[CREDENCIAL] ID: %s\n", Comunicacao::idDispositivo);
+  Serial.println("[CREDENCIAL] Gere a senha na página /admin/ do DCMonitor e "
+                 "cole aqui a linha indicada, no formato:");
+  Serial.printf("credencial %s <senha>\n", Comunicacao::idDispositivo);
+  Serial.println("[CREDENCIAL] Tecle Enter para ver estas instruções de novo.");
+}
+
+// Primeira utilizacao (ou flash apagada): sem senha MQTT na NVS, a placa nao
+// dorme e espera pela serial a linha gerada na pagina /admin/:
+//   credencial <device_id> <senha>
+[[noreturn]] void aguardarCredencial() {
+  // A espera pode durar o tempo que for preciso para copiar a senha.
+  esp_task_wdt_delete(nullptr);
+  Display::mostrarMensagem("Sem credencial");
+  instrucoesCredencial();
+
+  char linha[TAMANHO_LINHA_SERIAL + 1];
+  size_t tamanho = 0;
+  bool anteriorCR = false;
+
+  while (true) {
+    if (!Serial.available()) {
+      delay(20);
+      continue;
+    }
+
+    const char c = static_cast<char>(Serial.read());
+    if (c != '\n' && c != '\r') {
+      anteriorCR = false;
+      if (tamanho < TAMANHO_LINHA_SERIAL) {
+        linha[tamanho++] = c;
+      }
+      continue;
+    }
+    // CRLF conta como um unico Enter.
+    const bool fimDeCRLF = (c == '\n' && anteriorCR);
+    anteriorCR = (c == '\r');
+    if (tamanho == 0) {
+      // Enter numa linha vazia: repete o ID e o formato (monitor aberto
+      // depois do boot nao viu as instrucoes iniciais).
+      if (!fimDeCRLF) instrucoesCredencial();
+      continue;
+    }
+    linha[tamanho] = '\0';
+    tamanho = 0;
+
+    char comando[16] = "";
+    char id[32] = "";
+    char senha[Credencial::TAMANHO_MAXIMO + 2] = "";
+    const int campos = sscanf(linha, "%15s %31s %65s", comando, id, senha);
+
+    if (campos != 3 || strcmp(comando, "credencial") != 0) {
+      Serial.println("[CREDENCIAL] Linha não reconhecida. Use: credencial <device_id> <senha>");
+      continue;
+    }
+    if (strcmp(id, Comunicacao::idDispositivo) != 0) {
+      Serial.printf("[CREDENCIAL] A linha é do dispositivo %s; este é %s.\n",
+                    id, Comunicacao::idDispositivo);
+      continue;
+    }
+    if (!Credencial::salvar(senha)) {
+      Serial.println("[CREDENCIAL] Senha inválida ou falha ao gravar; gere outra na página.");
+      continue;
+    }
+
+    Serial.println("[CREDENCIAL] Senha gravada. Reiniciando...");
+    Serial.flush();
+    delay(500);
+    ESP.restart();
+  }
+}
+
 bool publicarLeitura(const LeituraAmbiente &leitura) {
   JsonDocument payload;
   payload["schema_version"] = 1;
@@ -159,27 +240,43 @@ bool publicarLeitura(const LeituraAmbiente &leitura) {
 
 // Uma sessao MQTT por ciclo: conecta, anuncia, publica e desconecta.
 bool publicarCiclo(const LeituraAmbiente &leitura) {
+  // O certificado do broker precisa ser assinado pela CA do DCMonitor e conter
+  // MQTT_HOST; sem isso a conexao e recusada antes de enviar a senha.
+  Comunicacao::clienteSeguro.setCACert(Certificados::CA_MQTT);
+  // O WiFiClientSecure espera 30 s por padrao no connect e nas leituras;
+  // com o broker fora do ar isso estouraria o watchdog do ciclo.
+  Comunicacao::clienteSeguro.setTimeout(Config::TEMPO_MAXIMO_MQTT_S);
+  Comunicacao::clienteSeguro.setHandshakeTimeout(Config::TEMPO_MAXIMO_MQTT_S);
+
   Comunicacao::clienteMqtt.setServer(Config::MQTT_HOST, Config::MQTT_PORT);
   Comunicacao::clienteMqtt.setBufferSize(256);
   Comunicacao::clienteMqtt.setSocketTimeout(Config::TEMPO_MAXIMO_MQTT_S);
 
-  Serial.printf("[INFO] Conectando ao MQTT %s:%u...\n",
+  Serial.printf("[INFO] Conectando ao MQTT %s:%u (TLS)...\n",
                 Config::MQTT_HOST, Config::MQTT_PORT);
 
+  // Usuario MQTT = device_id, senha propria da placa. O broker so deixa este
+  // usuario publicar nos topicos fdctmon/{device_id}/...
   // O Last Will "offline" continua registrado: so e publicado se a sessao
   // cair sem DISCONNECT, isto e, se a placa falhar no meio do ciclo.
   const bool conectou = Comunicacao::clienteMqtt.connect(
       Comunicacao::idDispositivo,
-      Config::MQTT_USERNAME,
-      Config::MQTT_PASSWORD,
+      Comunicacao::idDispositivo,
+      Comunicacao::senhaMqtt,
       Comunicacao::topicoStatus,
       1,
       true,
       "offline");
 
   if (!conectou) {
-    Serial.printf("[WARN] MQTT indisponível, código=%d\n",
-                  Comunicacao::clienteMqtt.state());
+    const int estado = Comunicacao::clienteMqtt.state();
+    if (estado == MQTT_CONNECT_BAD_CREDENTIALS || estado == MQTT_CONNECT_UNAUTHORIZED) {
+      Serial.println("[WARN] O broker recusou a credencial desta placa. Gere "
+                     "nova senha em /admin/ e regrave: pio run -t erase && "
+                     "pio run -t upload.");
+    } else {
+      Serial.printf("[WARN] MQTT indisponível, código=%d\n", estado);
+    }
     return false;
   }
 
@@ -259,6 +356,11 @@ void setup() {
                   Config::VERSAO_FIRMWARE, esp_reset_reason());
     Serial.printf("[INFO] Dispositivo: %s | DHT22: GPIO %u\n",
                   Comunicacao::idDispositivo, Config::PINO_DHT);
+  }
+
+  if (!Credencial::carregar(Comunicacao::senhaMqtt,
+                            sizeof(Comunicacao::senhaMqtt))) {
+    aguardarCredencial();
   }
 
   // O Wi-Fi associa em segundo plano enquanto o sensor e lido.

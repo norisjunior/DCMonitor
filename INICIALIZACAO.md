@@ -25,15 +25,22 @@ docker volume rm dcmonitor_mosquitto_data dcmonitor_influxdb_data \
 ```
 
 Isso apaga o histórico do InfluxDB, os fluxos editados na UI e os painéis
-criados à mão. O cadastro de dispositivos não está em volume: fica em
-`./cadastro/dispositivos.json` no host e só sai se for apagado à mão.
+criados à mão. O cadastro de dispositivos, as credenciais MQTT das placas e os
+certificados não estão em volume: ficam no host, em `./cadastro/`,
+`./mqtt-seguranca/` e `./pki/`, e só saem se forem apagados à mão. Apagar
+`./mqtt-seguranca/` tira todas as placas do broker; apagar `./pki/ca/` obriga a
+regravar todas elas.
 
-Quem vem de uma versão anterior ao cadastro de dispositivos precisa recriar ao
-menos `dcmonitor_node_red_data`: o `settings.js` e o `flows.json` novos só são
-copiados para o volume quando ele é criado. Recriar também o InfluxDB é o
+Quem vem de uma versão anterior às credenciais MQTT por placa precisa recriar ao
+menos `dcmonitor_node_red_data`: o `settings.js`, o `flows.json` e o
+`flows_cred.json` novos só são copiados para o volume quando ele é criado. As
+placas com firmware anterior ao 1.6.0 usam a porta 1883, que não existe mais, e
+precisam ser regravadas (passo 11).
+
+Vindo de antes do cadastro de dispositivos, recriar também o InfluxDB é o
 caminho mais simples, porque os dados antigos não têm as tags `local` e `nome`
-e não aparecem nos filtros do Grafana. Havendo algo a preservar, faça antes o backup descrito em
-[docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md).
+e não aparecem nos filtros do Grafana. Havendo algo a preservar, faça antes o
+backup descrito em [docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md).
 
 O nome do projeto é fixo no Compose (`name: dcmonitor`), então os volumes se
 chamam `dcmonitor_*` mesmo que a pasta de instalação tenha outro nome.
@@ -57,7 +64,40 @@ com `git branch --show-current` antes de seguir.
 Se a pasta já existir com o repositório dentro, use `git pull` no lugar do
 `clone`. Qualquer outro caminho serve como pasta de instalação.
 
-## 2. Validar o `.env`
+## 2. Gerar os certificados TLS
+
+As placas conectam no broker só pela porta 8883, com TLS. O script cria a CA
+própria do DCMonitor (só na primeira vez), emite o certificado do Mosquitto e
+gera o `ESP32/include/ca_cert.hpp` usado no firmware. Rode como root, na raiz do
+repositório:
+
+```bash
+sudo bash scripts/gerar_certificados.sh
+```
+
+O certificado sai com o nome `vplviot.ctn.fundacentro.intra` e o IP
+`10.32.8.115`. Para outros valores, use `MQTT_TLS_NOMES` e `MQTT_TLS_IPS` (veja
+[docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md)). Guarde uma cópia de
+`pki/ca/ca.key` em cofre: é o segredo mais sensível da instalação.
+
+## 3. Preparar os diretórios do host
+
+O cadastro de dispositivos (local e nome amigável de cada placa) é o arquivo
+`dispositivos.json`, num diretório montado no Node-RED, com dono UID 1000. As
+credenciais MQTT das placas (só hashes) ficam em `dynamic-security.json`, num
+diretório montado no Mosquitto, com dono UID 1883:
+
+```bash
+sudo install -d -o 1000 -g 1000 ./cadastro
+sudo install -d -o 1883 -g 1883 ./mqtt-seguranca
+```
+
+Use os caminhos de `CADASTRO_DIR` e `MQTT_SEGURANCA_DIR` se tiver mudado os
+padrões. O rótulo SELinux é ajustado pelo `:Z` do Compose. Se os arquivos não
+existirem, o Node-RED cria um cadastro vazio e o Mosquitto cria as credenciais
+base na primeira subida.
+
+## 4. Validar o `.env`
 
 Copie o exemplo e preencha:
 
@@ -79,10 +119,18 @@ dispositivos (`CADASTRO_ADMIN_PASSWORD_HASH`). Os dois são obrigatórios; sem e
 o Node-RED não sobe. O hash contém `$`; envolva cada um em aspas simples no
 `.env`.
 
-> `MQTT_USERNAME` e `MQTT_PASSWORD` precisam ser os mesmos de
-> `ESP32/include/config.hpp` das placas já gravadas. Trocar a senha MQTT sem
-> regravar o firmware deixa os dispositivos fora do broker, tentando reconectar
-> a cada 5 s, sem nenhum erro no servidor — apenas silêncio nos tópicos.
+`MQTT_ADMIN_USER` (padrão `node-red`) e `MQTT_ADMIN_PASSWORD` são o login do
+Node-RED no broker; o mesmo cliente gera as senhas das placas e também é aceito
+na porta 8883. Gere a senha com `openssl rand -base64 32`: o Mosquitto recusa
+subir com `TROQUE_*` ou com menos de 24 caracteres.
+
+> A senha de `MQTT_ADMIN_PASSWORD` é gravada no broker na primeira subida. Se
+> ela mudar no `.env` depois disso, o Node-RED e o healthcheck do Mosquitto
+> deixam de conectar até que a senha seja trocada também no broker (veja
+> [mosquitto/README.md](mosquitto/README.md)).
+
+`ZABBIX_SERVER_2` envia os mesmos itens a um segundo servidor Zabbix (padrão
+`10.32.8.69`). Se não houver, defina a variável vazia: `ZABBIX_SERVER_2=`.
 
 Depois, valide:
 
@@ -106,21 +154,7 @@ BIND_ADDRESS=0.0.0.0
 `0.0.0.0` é somente o endereço de escuta. Para acessar a plataforma, use
 `10.32.8.115`.
 
-## 3. Preparar o diretório do cadastro
-
-O cadastro de dispositivos (local e nome amigável de cada placa) é o arquivo
-`dispositivos.json`, num diretório do host montado no Node-RED. O diretório
-precisa existir e pertencer ao UID 1000, o usuário do container:
-
-```bash
-sudo install -d -o 1000 -g 1000 ./cadastro
-```
-
-Use o caminho de `CADASTRO_DIR` se tiver mudado o padrão `./cadastro`. O rótulo
-SELinux é ajustado pelo `:Z` do Compose. Se o arquivo não existir, o Node-RED
-cria um cadastro vazio na primeira subida.
-
-## 4. Subir a plataforma
+## 5. Subir a plataforma
 
 ```bash
 docker compose up -d --build
@@ -137,7 +171,14 @@ aparecer como `Up` e, após a inicialização, `healthy`:
 - `n8n`
 - `grafana`
 
-## 5. Liberar o firewall para o primeiro teste
+Na primeira subida, o log do Mosquitto mostra `[iniciar] credenciais base
+criadas`:
+
+```bash
+docker compose logs mosquitto | grep iniciar
+```
+
+## 6. Liberar o firewall e o NTP
 
 Confira se o `firewalld` está ativo:
 
@@ -149,23 +190,44 @@ Se estiver ativo, esta liberação é simples para homologação em uma rede int
 confiável:
 
 ```bash
-sudo firewall-cmd --permanent --add-port={1883,1880,3000,5678,8086}/tcp
+sudo firewall-cmd --permanent --add-port={8883,1880,3000,5678,8086}/tcp
+sudo firewall-cmd --permanent --add-service=ntp
 sudo firewall-cmd --reload
 ```
 
-Em produção, restrinja `1880`, `3000`, `5678` e `8086` à rede de gestão e `1883`
-à rede dos dispositivos. A página de cadastro usa a mesma porta `1880`. Não exponha essas portas diretamente à Internet.
+A porta 1883 não é mais usada; se foi liberada antes, feche-a com
+`sudo firewall-cmd --permanent --remove-port=1883/tcp`. Em produção, restrinja
+`1880`, `3000`, `5678` e `8086` à rede de gestão e `8883` e o NTP às redes das
+placas. A página de cadastro usa a mesma porta `1880` e mostra as senhas MQTT
+geradas, sem TLS. Não exponha essas portas diretamente à Internet.
 
-## 6. Abrir as interfaces
+As placas pegam a hora do próprio servidor. Em `/etc/chrony.conf`, acrescente:
+
+```text
+allow 10.32.8.0/24
+allow 172.16.40.0/24
+allow 172.16.200.0/23
+local stratum 10
+```
+
+```bash
+sudo systemctl restart chronyd
+chronyc sources
+```
+
+Com a rede apartada da internet, troque a linha `pool` por um NTP interno ou
+remova-a. Detalhes em [docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md).
+
+## 7. Abrir as interfaces
 
 | Serviço | Endereço |
 |---|---|
 | Grafana | `http://10.32.8.115:3000` |
 | Node-RED | `http://10.32.8.115:1880` |
-| Cadastro de dispositivos | `http://10.32.8.115:1880/admin/` |
+| Cadastro de dispositivos e credenciais MQTT | `http://10.32.8.115:1880/admin/` |
 | n8n | `http://10.32.8.115:5678` |
 | InfluxDB | `http://10.32.8.115:8086` |
-| MQTT | `10.32.8.115:1883` |
+| MQTT das placas (TLS) | `10.32.8.115:8883` |
 
 Credenciais de primeiro acesso:
 
@@ -178,78 +240,95 @@ Credenciais de primeiro acesso:
 
 Os hashes bcrypt armazenados no `.env` não são as senhas de login.
 
-## 7. Conferir o Zabbix
+## 8. Conferir o Zabbix
 
-Com os volumes recriados do zero, o fluxo e a credencial do InfluxDB são
-aplicados pela imagem: não é preciso importar `flows.json` nem digitar o token
-na UI. Confirme na UI do Node-RED que os nós aparecem com status verde.
+Com os volumes recriados do zero, o fluxo e as credenciais do InfluxDB e do
+broker são aplicados pela imagem: não é preciso importar `flows.json` nem
+digitar token ou senha na UI. Confirme na UI do Node-RED que os nós aparecem com
+status verde.
 
 O Node-RED, o InfluxDB e o Grafana são provisionados automaticamente, incluindo
 o envio ao Zabbix. O que não é provisionado está do lado do Zabbix: cada
 dispositivo precisa de um host com o nome igual ao seu `device_id` — por
 exemplo `esp32-18B4C0D8CBB0` — e, nele, os itens trapper `temp`, `umid`,
-`headindex` e `rssi` antes do teste. Veja os detalhes em
-[node-red/README.md](node-red/README.md).
+`headindex` e `rssi` antes do teste. Com `ZABBIX_SERVER_2`, repita no segundo
+servidor. Veja os detalhes em [node-red/README.md](node-red/README.md).
 
 O n8n sobe sem workflow ativo e não precisa de configuração nesta etapa.
 
-## 8. Testar o MQTT como se fosse um dispositivo
+## 9. Testar o MQTT como se fosse um dispositivo
 
-Na porta 1883, a ACL do broker só deixa cada cliente publicar em
-`fdctmon/{client-id}/data` e `/status` e ler `fdctmon/{client-id}/cmd`. Um
-subscriber em `fdctmon/#` na 1883 não recebe nada. Para observar o tráfego,
-assine pela porta interna 1884, de dentro do container do broker.
+Cada placa só publica no próprio ramo, `fdctmon/{device_id}/...`, com usuário
+igual ao `device_id` e senha própria. Para observar o tráfego, assine pela porta
+interna 1884, de dentro do container do broker, com o login do Node-RED.
 
 Em um primeiro terminal, deixe o subscriber aberto:
 
 ```bash
-docker compose exec mosquitto mosquitto_sub -p 1884 -t 'fdctmon/#' -v
+docker compose exec mosquitto sh -c \
+  'mosquitto_sub -p 1884 -u "$MQTT_ADMIN_USER" -P "$MQTT_ADMIN_PASSWORD" -t "fdctmon/#" -v'
 ```
 
-O publicador abaixo é um cliente Mosquitto descartável, separado do container do
-broker. No Oracle Linux, `--network host` permite que ele acesse a porta externa
-do broker em `127.0.0.1:1883`; `--rm` remove o cliente ao encerrar. O `-i
-teste-001` define o client-id e precisa ser igual ao `device_id` do tópico: com
-outro client-id, o broker descarta a mensagem sem erro.
+Crie uma credencial de teste: abra `http://10.32.8.115:1880/admin/`, entre com
+o login do cadastro, digite o ID fictício `esp32-0000000000A1` em "Placa nova:
+ID mostrado na serial" e clique em "Gerar senha". A página só aceita IDs no
+formato do firmware, `esp32-` seguido de 12 dígitos hexadecimais maiúsculos. A página mostra uma vez a linha
+`credencial esp32-0000000000A1 <senha>`; a senha é o terceiro campo.
 
-Em um segundo terminal, informe as credenciais MQTT e publique uma medição:
+Em um segundo terminal, publique uma medição pela porta 8883, com TLS, de
+dentro do container do broker (`localhost` está no certificado):
 
 ```bash
-export MQTT_USERNAME=fdctmon_iot
-read -rsp "Senha MQTT: " MQTT_PASSWORD && echo
-export MQTT_PASSWORD
+read -rsp "Senha MQTT de esp32-0000000000A1: " SENHA && echo
 
-docker run --rm --network host \
-  -e MQTT_USERNAME -e MQTT_PASSWORD \
-  eclipse-mosquitto:2.0.22 \
-  sh -c 'exec mosquitto_pub -h 127.0.0.1 -p 1883 -i teste-001 \
-    -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
-    -t fdctmon/teste-001/data \
-    -m "{\"schema_version\":1,\"device_id\":\"teste-001\",\"sensor\":\"DHT22\",\"temp\":24.7,\"umid\":53.2,\"ic\":24.6}"'
+docker compose exec mosquitto mosquitto_pub \
+  --cafile /mosquitto/certs/ca.crt -h localhost -p 8883 \
+  -u esp32-0000000000A1 -P "$SENHA" \
+  -t fdctmon/esp32-0000000000A1/data \
+  -m '{"schema_version":1,"device_id":"esp32-0000000000A1","sensor":"DHT22","temp":24.7,"umid":53.2,"ic":24.6}'
 
-unset MQTT_PASSWORD
+unset SENHA
 ```
 
 O primeiro terminal deve mostrar a mensagem recebida no tópico
-`fdctmon/teste-001/data`. Encerre o subscriber com `Ctrl+C`.
+`fdctmon/esp32-0000000000A1/data`. Encerre o subscriber com `Ctrl+C`.
 
 Depois, confirme:
 
 1. Node-RED sem erro no log e nós com status verde na UI.
 2. Dashboard `DCMonitor - Ambiente` atualizado no Grafana, com a placa
-   `teste-001` no local `sem-local`.
-3. Valores atualizados em **Latest Data** no Zabbix, se houver o host `teste-001`.
+   `esp32-0000000000A1` no local `sem-local`.
+3. Valores atualizados em **Latest Data** no Zabbix, se houver o host `esp32-0000000000A1`.
 
-## 9. Cadastrar a placa
+## 10. Cadastrar a placa
 
-Abra `http://10.32.8.115:1880/admin/` e entre com o login do cadastro. A placa
-`teste-001` aparece como "novo". Crie um local, dê um nome à placa, escolha o
-local e salve. Repita a publicação do passo 8: a nova medição chega ao Grafana
-com o local e o nome escolhidos, sem reiniciar nada. Confira o arquivo gravado:
+Na página `/admin/`, a placa `esp32-0000000000A1` aparece como "novo", com a credencial
+ativa. Crie um local, dê um nome à placa, escolha o local e salve. Repita a
+publicação do passo 9: a nova medição chega ao Grafana com o local e o nome
+escolhidos, sem reiniciar nada. Confira o arquivo gravado:
 
 ```bash
 cat ./cadastro/dispositivos.json
 ```
+
+Ao terminar, clique em "Revogar" na linha de `esp32-0000000000A1` e confirme.
+
+## 11. Gravar as placas
+
+Cada placa precisa do firmware 1.6.0 e da própria senha MQTT. O roteiro completo
+está em [ESP32/README.md](ESP32/README.md); em resumo:
+
+1. Copie `ESP32/include/ca_cert.hpp`, gerado no passo 2, para a máquina que
+   compila o firmware. No `config.hpp`, use `MQTT_HOST` igual a um nome ou IP do
+   certificado (por exemplo `10.32.8.115`), `MQTT_PORT` `8883` e `NTP_SERVIDOR`
+   igual ao IP do servidor.
+2. Grave com `pio run -t upload` e abra o monitor serial
+   (`pio device monitor`). A placa mostra `Sem credencial` no display e imprime
+   o próprio ID.
+3. Em `/admin/`, digite esse ID em "Placa nova: ID mostrado na serial", clique em
+   "Gerar senha" e depois em "Copiar linha".
+4. Cole a linha no monitor serial e tecle Enter. A placa grava a senha, reinicia
+   e passa a publicar.
 
 ## Se algo não subir
 
@@ -263,6 +342,11 @@ Para acompanhar um serviço específico:
 ```bash
 docker compose logs -f node-red
 ```
+
+Se o Mosquitto não ficar `healthy`, confira no log se ele recusou
+`MQTT_ADMIN_PASSWORD` (valor `TROQUE_*` ou menos de 24 caracteres), se
+`./mqtt-seguranca` pertence ao UID 1883 e se `pki/mosquitto/server.key` existe
+com dono UID 1883.
 
 Não execute `docker compose down -v`: a opção `-v` remove os volumes e apaga os
 dados persistidos. Para firewall definitivo, backup, atualização e rollback,

@@ -9,11 +9,14 @@
 
 ## Convenções implementadas
 
-- Configuração sensível em `ESP32/include/config.hpp`, ignorada pelo Git.
+- Configuração sensível em `ESP32/include/config.hpp`, ignorada pelo Git. Não há senha MQTT nele.
+- MQTT só por TLS na porta 8883 (`WiFiClientSecure` com a CA de `ESP32/include/ca_cert.hpp`, gerado por `scripts/gerar_certificados.sh` e ignorado pelo Git). Usuário = `device_id`; senha própria da placa na NVS (`DC_Credencial.hpp`, namespace `dcmonitor`).
+- Sem senha na NVS, a placa não dorme: mostra `Sem credencial` e espera pela serial a linha `credencial <device_id> <senha>` gerada em `/admin/`. Trocar a senha exige apagar a flash (`pio run -t erase && pio run -t upload`).
+- O mbedTLS do framework não verifica datas de certificado; o NTP serve só ao horário do display.
 - `ESP32DC.ino` mantém a `struct` e executa sensor, Wi-Fi, MQTT e JSON; `DC_Ambiente.hpp` encapsula o DHT22 e `DC_Comunicacao.hpp` mantém clientes, identidade e tópicos.
 - O endereço IP recebido pelo ESP32 é registrado a cada ciclo.
 - Ciclo com deep sleep de 60 s (`TEMPO_SONO_S`); todo o trabalho fica em `setup()`.
-- Esperas de Wi-Fi, MQTT e NTP têm limite; ao estourar, a placa dorme e tenta no próximo ciclo.
+- Esperas de Wi-Fi, MQTT (conexão, handshake TLS e resposta) e NTP têm limite; ao estourar, a placa dorme e tenta no próximo ciclo.
 - Watchdog de tarefa (`esp_task_wdt`) reinicia a placa se o ciclo acordado passar de 30 s.
 - Estado que precisa sobreviver ao sono usa `RTC_DATA_ATTR`; o fuso é reaplicado a cada boot.
 - Last Will retido no tópico de status; a sessão termina com `DISCONNECT` limpo.
@@ -27,6 +30,7 @@
 ```bash
 cd ESP32
 cp include/config.example.hpp include/config.hpp
+# copie include/ca_cert.hpp gerado no servidor
 pio run
 pio run -t upload
 pio device monitor
@@ -34,7 +38,7 @@ pio device monitor
 
 ## Wokwi
 
-`wokwi.toml` existe, mas ainda falta `diagram.json`. A simulação não substitui o teste no DHT22 físico e deve usar credenciais próprias de laboratório.
+`wokwi.toml` existe, mas ainda falta `diagram.json`. A simulação não substitui o teste no DHT22 físico e deve usar credenciais próprias de laboratório, incluindo `ca_cert.hpp` e senha MQTT colada na serial.
 
 ## Próximas extensões
 

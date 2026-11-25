@@ -2,6 +2,44 @@
 
 > Entradas mais recentes primeiro.
 
+## 2026-11-25 — Credencial MQTT por dispositivo pelo plugin dynamic security
+
+**Decisão:** Cada placa autentica no Mosquitto com usuário igual ao `device_id` e senha própria, gerada na página `/admin/`. O Mosquitto passa a usar o plugin dynamic security: o Node-RED, como cliente administrador, cria, troca e revoga credenciais por mensagens em `$CONTROL/dynamic-security/v1`, sem reiniciar o broker. Cada placa recebe o papel `disp-<device_id>`, com permissão apenas para publicar em `fdctmon/<device_id>/data` e `/status` e ler `fdctmon/<device_id>/cmd`. A senha compartilhada da frota e o `acl_file` por client-id saem. Na placa, a senha fica na NVS e é entregue uma única vez pela serial; sem senha, a placa não dorme e espera a linha `credencial <device_id> <senha>`. Substitui a decisão de 2026-11-25 sobre ACL por client-id.
+
+**Justificativa:** O client-id é declarado pelo próprio cliente; com a senha compartilhada, qualquer placa podia se passar por outra. Com senha própria, a identidade vem da autenticação. O plugin evita editar arquivo de senhas e enviar sinal ao broker a cada placa nova, e o Node-RED já fala MQTT. A entrega pela serial mantém um binário único para a frota. A senha só existe em claro na resposta HTTP que a página mostra uma vez; o broker guarda o hash.
+
+**Alternativas descartadas:** `password_file` com recarga por SIGHUP, que exigiria um processo com acesso ao container do Mosquitto; senha compilada por placa, que acaba com o binário único; portal Wi-Fi de configuração na placa, mais firmware para o mesmo resultado; ACL por padrão `%u` no plugin, que o Mosquitto 2.0.22 não substitui (verificado em protótipo: a regra literal funciona e a mesma regra com `%u` não autoriza nada).
+
+**Consequências:** Placa nova só conecta depois de ter a senha gerada na página e colada na serial; ela não aparece mais sozinha como "novo" antes disso. Trocar a senha de uma placa exige apagar a flash e gravar de novo (`pio run -t erase`). A porta interna 1884 deixa de aceitar anônimo: o Node-RED usa `MQTT_ADMIN_USER`/`MQTT_ADMIN_PASSWORD`, e a contingência do n8n precisará de cliente próprio. Com `per_listener_settings false`, o administrador também autentica na 8883; por isso o `iniciar.sh` exige senha de ao menos 24 caracteres e o firewall limita a 8883 às redes das placas. A API só aceita IDs no formato `esp32-XXXXXXXXXXXX`, exige o cabeçalho `X-DCMonitor` contra CSRF e separa criar (POST, nunca sobrescreve) de trocar (PUT). A senha fica na flash da placa, legível por quem tiver acesso físico enquanto a criptografia de flash do ESP32 não for ativada. O arquivo de credenciais fica no host (`MQTT_SEGURANCA_DIR`) e entra no backup.
+
+## 2026-11-25 — TLS na porta 8883 com CA própria
+
+**Decisão:** As placas conectam somente pela porta 8883, com TLS, e verificam o certificado do broker contra uma CA própria do DCMonitor. `scripts/gerar_certificados.sh` cria a CA (10 anos) uma vez, emite o certificado do servidor (825 dias) com os nomes `vplviot.ctn.fundacentro.intra`, `mosquitto` e `localhost` e o IP `10.32.8.115`, e gera `ESP32/include/ca_cert.hpp` com o certificado público da CA. A porta 1883 deixa de existir.
+
+**Justificativa:** Sem TLS, senha e telemetria trafegam em claro pelo Wi-Fi. Uma CA própria serve à rede apartada sem depender de autoridade externa. Com CA separada do certificado do servidor, renovar o certificado do servidor não exige regravar placas. O mbedTLS 2.28 do ESP32 compara o host só com entradas DNS do certificado, por isso o IP entra também como DNS.
+
+**Alternativas descartadas:** Certificado do servidor autoassinado sem CA, que obrigaria a regravar a frota a cada renovação; `setInsecure()` no firmware, que cifra sem autenticar o broker; manter a 1883 em paralelo, que deixaria a senha exposta em placas mal configuradas.
+
+**Consequências:** O handshake TLS se repete a cada despertar, com 1 a 2 s a mais por ciclo, e o firmware cresce cerca de 150 KB (flash em ~74,5 %). O `WiFiClientSecure` espera 30 s por padrão na conexão; o firmware limita a `TEMPO_MAXIMO_MQTT_S` para não estourar o watchdog do ciclo com o broker fora do ar. Uma CA nova exige regravar todas as placas, e é o único jeito de invalidar um certificado de servidor comprometido, porque a placa não verifica expiração nem revogação. A chave da CA (`pki/ca/ca.key`) é o segredo mais sensível da instalação e vai para cofre. É o passo intermediário até certificado de cliente por placa (mTLS com `use_identity_as_username`), que reaproveita a mesma CA e o mesmo usuário igual ao `device_id`.
+
+## 2026-11-25 — Servidor como NTP das placas
+
+**Decisão:** O chrony do servidor passa a servir hora às redes das placas (`allow` para `10.32.8.0/24`, `172.16.40.0/24` e `172.16.200.0/23`, `local stratum 10`), e o `NTP_SERVIDOR` do firmware aponta para ele.
+
+**Justificativa:** A rede vai ficar apartada da internet, e as placas já alcançam o servidor para o MQTT; `local stratum 10` mantém o serviço sem fonte externa. O horário serve ao display e ao registro.
+
+**Alternativas descartadas:** Piso de relógio pela data de compilação, avaliado para o TLS funcionar sem NTP e descartado ao confirmar que o mbedTLS do framework (Arduino-ESP32 2.0.17) é compilado sem verificação de datas (`CONFIG_MBEDTLS_HAVE_TIME_DATE` desligado): o TLS da placa já funciona sem relógio.
+
+**Consequências:** Sem NTP, o display mostra `--:--` e o NTP é tentado a cada ciclo, com até 3 s a mais. A placa nunca verifica a expiração do certificado do broker, com ou sem NTP: um certificado de servidor vencido ou de chave vazada continua aceito até a CA ser trocada. Se uma versão futura do framework passar a verificar datas, o NTP do servidor se torna obrigatório para o TLS. A porta 123/udp precisa estar liberada no servidor para as redes das placas.
+
+## 2026-11-25 — Segundo servidor Zabbix
+
+**Decisão:** O Node-RED envia os mesmos itens a um segundo servidor Zabbix (`ZABBIX_SERVER_2`, hoje `10.32.8.69`), com os mesmos hosts e chaves. Vazio, o envio fica desligado. Os debugs `MSG RAW ESP32` e `MSG ZABBIX`, criados na interface em produção, passam a ser versionados no fluxo.
+
+**Justificativa:** O segundo servidor existia só como edição feita na interface do Node-RED, com o IP fixo no nó; a recriação do volume exigida pelas mudanças de fluxo o apagaria sem aviso.
+
+**Consequências:** Os dois servidores precisam dos mesmos hosts e itens trapper. Um erro de envio ao segundo servidor aparece no log, mas não afeta o primeiro nem o InfluxDB.
+
 ## 2026-11-25 — Tópicos `data`, `status` e `cmd`, sem local no tópico
 
 **Decisão:** A telemetria passa de `fdctmon/{device_id}/attrs` para `fdctmon/{device_id}/data`. `fdctmon/{device_id}/status` continua como está e `fdctmon/{device_id}/cmd` fica reservado para comandos futuros. O local do dispositivo não entra no tópico. Firmware 1.5.0.

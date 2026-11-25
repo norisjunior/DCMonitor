@@ -65,7 +65,10 @@
   }
   .barra-interna { max-width: 1100px; width: 100%; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
   .vazio { padding: 16px; color: var(--muted); }
-  .acoes { display: flex; gap: 8px; }
+  .acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .painel-senha { background: var(--surface); border: 2px solid var(--accent); border-radius: 8px; padding: 16px; display: grid; gap: 10px; }
+  .linha-serial { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; user-select: all; }
+  .credencial-ok { color: var(--ok); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -78,6 +81,17 @@
   <div id="erro" class="banner erro" hidden></div>
   <div id="aviso" class="banner info" hidden></div>
 
+  <section id="painel-senha" class="painel-senha" hidden aria-live="polite">
+    <h2>Senha MQTT de <span id="senha-device" class="mono"></span></h2>
+    <p>Esta senha não será mostrada de novo. Com a placa na USB e o monitor serial aberto (115200 baud), cole a linha abaixo e tecle Enter. A placa grava a senha e reinicia.</p>
+    <pre id="senha-linha" class="linha-serial"></pre>
+    <div class="acoes">
+      <button type="button" id="botao-copiar-linha" class="primary">Copiar linha</button>
+      <button type="button" id="botao-fechar-senha">Fechar</button>
+    </div>
+    <p class="muted">A placa só pede a senha quando não tem nenhuma gravada. Se ela já tinha senha, apague a flash e grave de novo antes de colar: <span class="mono">pio run -t erase &amp;&amp; pio run -t upload</span>.</p>
+  </section>
+
   <section>
     <div class="section-head">
       <h2>Dispositivos</h2>
@@ -85,11 +99,17 @@
     </div>
     <div class="card">
       <table>
-        <thead><tr><th>Situação</th><th>Dispositivo</th><th>Nome amigável</th><th>Local</th><th>Última leitura</th><th></th></tr></thead>
+        <thead><tr><th>Situação</th><th>Dispositivo</th><th>Nome amigável</th><th>Local</th><th>Última leitura</th><th>Credencial MQTT</th><th></th></tr></thead>
         <tbody id="tabela-dispositivos"></tbody>
       </table>
       <p class="vazio" id="sem-dispositivos" hidden>Nenhum dispositivo enviou dados desde o último reinício do Node-RED e nenhum está cadastrado. Ligue uma placa e aguarde até um minuto.</p>
     </div>
+    <form class="add-local" id="form-dispositivo" novalidate>
+      <label for="novo-dispositivo-id">Placa nova: ID mostrado na serial
+        <input type="text" id="novo-dispositivo-id" maxlength="64" placeholder="esp32-E0477D077000" autocomplete="off" class="mono">
+      </label>
+      <button type="submit">Gerar senha</button>
+    </form>
     <p class="muted">Placas que enviaram dados mas não têm cadastro aparecem como <span class="tag">novo</span> e são gravadas com local <span class="mono">sem-local</span>. A situação considera a última leitura recebida desde o último reinício do Node-RED.</p>
   </section>
 

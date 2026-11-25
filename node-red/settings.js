@@ -1,4 +1,5 @@
-// Login da página de cadastro (/admin/) e da API que ela usa (/api/cadastro).
+// Login da página de cadastro (/admin/) e das APIs que ela usa (/api/cadastro
+// e /api/credenciais).
 // É separado do editor: quem cadastra dispositivos não precisa editar fluxos.
 // Sem o hash, o Node-RED não sobe; endpoints HTTP abertos não são aceitáveis.
 const cadastroUser = process.env.CADASTRO_ADMIN_USER || "cadastro";

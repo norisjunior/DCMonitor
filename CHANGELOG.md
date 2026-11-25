@@ -6,6 +6,40 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-11-25b] — Credencial MQTT por dispositivo, TLS e segundo Zabbix
+
+### Adicionado
+
+- Plugin dynamic security no Mosquitto (`mosquitto/mosquitto.conf`) e `mosquitto/iniciar.sh`, que na primeira subida cria o cliente administrador e o papel `ingestao`
+- `node-red/flows.json` — aba `Credenciais MQTT`: `GET /api/credenciais`, `POST /api/credenciais/:id` (cria; 409 se já existe), `PUT` (troca) e `DELETE` (revoga), com papel `disp-<device_id>` restrito aos tópicos da própria placa, cabeçalho `X-DCMonitor` obrigatório e IDs só no formato `esp32-XXXXXXXXXXXX`
+- `node-red/admin/` — coluna de credencial, geração de senha para placa nova, troca e revogação com confirmação, e painel com a linha da serial mostrada uma única vez
+- `scripts/gerar_certificados.sh` — CA própria, certificado do servidor e `ESP32/include/ca_cert.hpp`
+- `ESP32/src/DC_Credencial.hpp` — senha MQTT na NVS; `ESP32/include/ca_cert.example.hpp`
+- Segundo servidor Zabbix (`ZABBIX_SERVER_2`) e debugs `MSG RAW ESP32` e `MSG ZABBIX` no fluxo versionado
+- `scripts/test_node_red_functions.js` — 43 testes
+
+### Alterado
+
+- Firmware 1.6.0: MQTT sobre TLS na porta 8883, usuário = `device_id`, senha da NVS; sem senha, espera a linha `credencial <device_id> <senha>` na serial sem dormir (Enter repete o ID); espera de conexão TLS limitada a `TEMPO_MAXIMO_MQTT_S`
+- `ESP32/include/config.example.hpp` — saem `MQTT_USERNAME` e `MQTT_PASSWORD`; `MQTT_PORT` passa a 8883; `NTP_SERVIDOR` aponta para o servidor
+- `docker-compose.yml` — Mosquitto publica só a 8883; diretórios do host `MQTT_CERTS_DIR` e `MQTT_SEGURANCA_DIR`; healthcheck autenticado sem senha na linha de comando; Node-RED recebe `MQTT_ADMIN_*` e `ZABBIX_SERVER_2` (padrão `10.32.8.69`)
+- `node-red/flows_cred.json` — login do Node-RED na porta interna
+- `.env.example`, `.gitignore`, `PROJECT_BRIEF.md` (RF-005, RF-009, RNF-008, D-024, D-026 a D-029), `docs/decision-log.md` e documentação operacional
+
+### Removido
+
+- `mosquitto/acl`, a senha MQTT única da frota (`MQTT_USERNAME`, `MQTT_PASSWORD`) e a porta 1883
+
+**Ação necessária:**
+
+1. No servidor, como root: `bash scripts/gerar_certificados.sh` e `install -d -o 1883 -g 1883 ./mqtt-seguranca`. Guarde `pki/ca/ca.key` em cofre.
+2. No `.env`: remova `MQTT_USERNAME`/`MQTT_PASSWORD`; adicione `MQTT_ADMIN_USER`, `MQTT_ADMIN_PASSWORD` (ao menos 24 caracteres: `openssl rand -base64 32`), `MQTT_CERTS_DIR`, `MQTT_SEGURANCA_DIR` e, se quiser explicitar, `ZABBIX_SERVER_2=10.32.8.69`.
+3. chrony servindo as redes das placas e firewall com 8883/tcp e 123/udp liberadas para elas e 1883 fechada (`docs/DEPLOY_PROD.md`).
+4. Recrie o volume `dcmonitor_node_red_data` (fluxo e `flows_cred.json` novos).
+5. Copie `ca_cert.hpp` do servidor para `ESP32/include/`. No `config.hpp` local: `MQTT_PORT = 8883`, `MQTT_HOST` com o IP ou nome do certificado, `NTP_SERVIDOR` com o servidor, `VERSAO_FIRMWARE = "1.6.0"`. Grave cada placa com `pio run -t erase && pio run -t upload`, gere a senha em `/admin/` e cole a linha no monitor serial.
+
+---
+
 ## [2026-11-25] — Cadastro de dispositivos, tópico `data` e ACL por dispositivo
 
 ### Adicionado
