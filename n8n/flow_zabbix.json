@@ -2,7 +2,7 @@
   "name": "DCMonitor - MQTT para Zabbix",
   "nodes": [
     {
-      "parameters": { "topics": "fdctmon/+/attrs", "options": {} },
+      "parameters": { "topics": "fdctmon/+/data", "options": {} },
       "id": "mqtt-trigger",
       "name": "Telemetria MQTT",
       "type": "n8n-nodes-base.mqttTrigger",
