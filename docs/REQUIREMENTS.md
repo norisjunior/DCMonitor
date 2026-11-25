@@ -1,6 +1,6 @@
 # Requisitos — DCMonitor
 
-> Atualizado em 2026-09-17. Fonte de verdade resumida: `PROJECT_BRIEF.md`.
+> Atualizado em 2026-11-25. Fonte de verdade resumida: `PROJECT_BRIEF.md`.
 
 ## Objetivo confirmado
 
@@ -13,7 +13,7 @@ Substituir PostgreSQL/Flask por uma plataforma de séries temporais no Oracle Li
 Como operador do NOC, quero receber temperatura, umidade e índice de calor a cada minuto para acompanhar o ambiente do datacenter.
 
 - DHT22 conectado ao GPIO 25 e alimentado segundo a especificação do módulo.
-- Tópico `fdctmon/{device_id}/attrs`.
+- Tópico `fdctmon/{device_id}/data`; client-id MQTT igual ao `device_id`.
 - JSON com `schema_version`, `device_id`, `sensor`, `firmware_version`, `temp`, `umid`, `ic` e `rssi`.
 - Valores em °C e %UR, arredondados em uma casa decimal.
 - Leitura inválida é registrada no serial e não é publicada.
@@ -25,10 +25,10 @@ Como operador do NOC, quero receber temperatura, umidade e índice de calor a ca
 
 Como administrador, quero que o Node-RED grave as medições no InfluxDB para manter um histórico consultável.
 
-- Node-RED assina `fdctmon/+/attrs` pela porta MQTT interna.
-- Validação rejeita IDs, temperaturas e umidades fora do contrato.
+- Node-RED assina `fdctmon/+/data` pela porta MQTT interna.
+- Validação rejeita IDs, temperaturas e umidades fora do contrato, e medição cujo `device_id` difere do tópico.
 - Measurement: `ambiente`.
-- Tags: `device_id`, `sensor`.
+- Tags: `device_id`, `sensor`, `local` (código do local, ou `sem-local`) e `nome` (nome amigável, ou o próprio `device_id`).
 - Fields: `temperatura`, `umidade`, `indice_calor` e `rssi` quando disponíveis.
 - Timestamp é atribuído pelo InfluxDB/servidor.
 - Retenção padrão do bucket `fdctmon`: 90 dias.
@@ -40,6 +40,8 @@ Como operador do NOC, quero um dashboard pronto após o deploy para visualizar v
 - Datasource `DCMonitor InfluxDB` provisionado automaticamente.
 - Dashboard `DCMonitor - Ambiente` provisionado automaticamente.
 - Painéis para temperatura, umidade, índice de calor, sinal Wi-Fi e histórico.
+- Variáveis `Local` e `Dispositivo` (seleção múltipla, com "All"); legendas e valores atuais mostram o nome amigável.
+- Tabela "Situação das placas" com a última medição de cada placa nos últimos 30 dias; "Sem dados há" fica laranja a partir de 3 min e vermelho a partir de 10 min.
 - Atualização automática a cada 30 segundos.
 
 ### HU-005 — Integração Zabbix
@@ -61,6 +63,18 @@ Como administrador do Oracle Linux, quero subir toda a plataforma com poucos com
 - Volumes nomeados preservam dados.
 - `docker compose ps` e `docker compose logs <serviço>` permitem diagnóstico.
 
+### HU-007 — Cadastro de dispositivos
+
+Como operador do NOC, quero dar a cada placa um nome amigável e um local para encontrá-la no Grafana sem decorar o `device_id`.
+
+- Página `http://SERVIDOR:1880/admin/` com login próprio (`CADASTRO_ADMIN_USER`, `CADASTRO_ADMIN_PASSWORD_HASH`), separado do editor do Node-RED.
+- A página lista as placas vistas desde o último reinício do Node-RED, com situação e última leitura, e as já cadastradas; placa sem cadastro aparece como "novo".
+- Permite definir nome (até 64 caracteres) e local de cada placa, e criar e remover locais (código slug imutável + nome). Local com placas não pode ser removido.
+- Salvar grava `dispositivos.json` no diretório do host `CADASTRO_DIR` e vale para as próximas medições, sem reiniciar.
+- Duas janelas editando ao mesmo tempo: a segunda a salvar recebe 409 e precisa recarregar.
+- JSON inválido no disco não derruba a ingestão: a página mostra o motivo e a telemetria continua gravando com `sem-local`.
+- O firmware e o Zabbix não mudam.
+
 ## Contrato MQTT
 
 Exemplo ESP32:
@@ -70,7 +84,7 @@ Exemplo ESP32:
   "schema_version": 1,
   "device_id": "esp32-A1B2C3D4E5F6",
   "sensor": "DHT22",
-  "firmware_version": "1.0.0",
+  "firmware_version": "1.5.0",
   "temp": 24.7,
   "umid": 53.2,
   "ic": 24.6,
@@ -89,14 +103,25 @@ Exemplo ESP32:
 | `schema_version` | integer | não | versão atual `1` |
 | `firmware_version` | string | não | rastreabilidade |
 
-O firmware 1.2.0 envia todos os campos. Eles seguem opcionais na validação para que uma versão anterior, ou um dispositivo em recuperação, continue gravando temperatura e umidade.
+O firmware envia todos os campos desde a versão 1.2.0. Eles seguem opcionais na validação para que uma versão anterior, ou um dispositivo em recuperação, continue gravando temperatura e umidade.
 
-Status do dispositivo: `fdctmon/{device_id}/status`, payload retido `online` a cada despertar; `offline` somente via Last Will, quando a sessão cai sem `DISCONNECT`. Com deep sleep, a ausência do dispositivo é detectada pela falta de telemetria.
+Tópicos por dispositivo:
+
+| Tópico | Sentido | Conteúdo |
+|---|---|---|
+| `fdctmon/{device_id}/data` | placa → servidor | telemetria acima, QoS 0, não retida |
+| `fdctmon/{device_id}/status` | placa → servidor | `online` retido a cada despertar; `offline` somente via Last Will, quando a sessão cai sem `DISCONNECT` |
+| `fdctmon/{device_id}/cmd` | servidor → placa | reservado para comandos futuros; ainda não usado pelo firmware |
+
+Com deep sleep, a ausência do dispositivo é detectada pela falta de telemetria, e um comando futuro em `/cmd` terá de ser mensagem retida, lida pela placa ao acordar.
+
+Na porta 1883, a ACL do Mosquitto só deixa cada cliente escrever em `fdctmon/{client-id}/data` e `/status` e ler `fdctmon/{client-id}/cmd`. O client-id da placa é o `device_id`. Publicação fora do próprio ramo é descartada sem aviso.
 
 ## Requisitos não funcionais
 
 - Segredos somente em `.env` e `ESP32/include/config.hpp`, ambos ignorados.
-- Porta 1883 autenticada; porta 1884 restrita à rede Docker.
+- Porta 1883 autenticada e com ACL por client-id; porta 1884 restrita à rede Docker.
+- Página de cadastro protegida por login próprio; o cadastro é um arquivo comum do host, copiável para backup.
 - Interfaces fazem bind em `0.0.0.0`; as administrativas são protegidas e liberadas no firewall apenas para a rede de gestão.
 - Logs não devem imprimir senhas, tokens ou cabeçalho de autorização do InfluxDB.
 - A perda de uma integração não deve impedir as demais: InfluxDB e Zabbix recebem por ramificações independentes do fluxo Node-RED.
@@ -106,10 +131,11 @@ Status do dispositivo: `fdctmon/{device_id}/status`, payload retido `online` a c
 
 | Etapa | Verificação |
 |---|---|
-| Dispositivo → MQTT | `mosquitto_sub` autenticado em `fdctmon/#` |
+| Dispositivo → MQTT | `mosquitto_sub` na porta interna 1884, de dentro do container do broker |
 | MQTT → Node-RED | Debug/log e status do nó de gravação na UI Node-RED |
 | Node-RED → InfluxDB | Consulta Flux na UI do InfluxDB |
-| InfluxDB → Grafana | Dashboard provisionado com dados por `device_id` |
+| InfluxDB → Grafana | Dashboard provisionado com dados por local e nome |
+| Cadastro → InfluxDB | Medição seguinte a um salvamento na página `/admin/` chega com as novas tags `local` e `nome` |
 | Node-RED → Zabbix | Latest Data dos itens trapper do host homônimo ao `device_id` |
 
 ## Fora do escopo atual

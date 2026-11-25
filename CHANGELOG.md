@@ -6,6 +6,39 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-11-25] — Cadastro de dispositivos, tópico `data` e ACL por dispositivo
+
+### Adicionado
+
+- `node-red/admin/index.html` e `app.js` — página `/admin/` para definir nome amigável e local de cada dispositivo e manter a lista de locais; mostra a situação e a última leitura de cada placa vista
+- `node-red/flows.json` — aba `Cadastro de dispositivos`: lê `dispositivos.json` ao iniciar (cria vazio se ausente), API `GET`/`PUT /api/cadastro` com validação e controle de revisão (409 em conflito, inclusive em gravações simultâneas) e gravação atômica com `dispositivos.json.bak`
+- `node-red/settings.js` — `httpStatic` em `/admin/`, login próprio da página e da API (`CADASTRO_ADMIN_USER`, `CADASTRO_ADMIN_PASSWORD_HASH`; sem o hash o Node-RED não sobe), cabeçalhos CSP/anti-frame/nosniff e `functionExternalModules` para o `fs` do nó de gravação
+- `docker-compose.yml` — diretório do host `CADASTRO_DIR` (padrão `./cadastro`) montado em `/data/cadastro`; ACL do Mosquitto montada e copiada com permissão restrita
+- `mosquitto/acl` — cada cliente só escreve em `fdctmon/{client-id}/data` e `/status` e só lê `/cmd`
+- `grafana/dashboards/dcmonitor.json` — variáveis `Local` e `Dispositivo`, legendas com o nome amigável e painel `Situação das placas` com o tempo desde a última medição
+- `scripts/test_node_red_functions.js` — 27 testes das funções do fluxo, executados pelo `run_project_checks.sh`
+- `docs/DEVELOPMENT.md` — processo de desenvolvimento e revisão
+
+### Alterado
+
+- Tópico de telemetria `fdctmon/{device_id}/attrs` → `fdctmon/{device_id}/data`; `fdctmon/{device_id}/cmd` reservado para comandos futuros
+- `ESP32/src/DC_Comunicacao.hpp` e `ESP32/include/config.example.hpp` — tópico `data`; `VERSAO_FIRMWARE` para `1.5.0`
+- `node-red/flows.json` — telemetria assina `fdctmon/+/data`, rejeita `device_id` diferente do tópico e grava as tags `local` e `nome` (`sem-local` e o próprio `device_id` para placa sem cadastro)
+- `grafana/dashboards/dcmonitor.json` — valores atuais e situação pegam a medição mais recente de cada placa e só então aplicam os filtros: placa que mudou de local aparece apenas no local novo
+- `n8n/flow_zabbix.json` — contingência assina `fdctmon/+/data`
+- `.env.example`, `.gitignore`, `PROJECT_BRIEF.md` (RF-001, RF-003, RF-008, RNF-001, D-023 a D-025), `docs/decision-log.md` e documentação operacional
+
+O Zabbix não muda: host igual ao `device_id` e as mesmas chaves.
+
+**Ação necessária:**
+
+1. No `.env`, adicione `CADASTRO_ADMIN_USER`, `CADASTRO_ADMIN_PASSWORD_HASH` (entre aspas simples) e `CADASTRO_DIR`, conforme `.env.example`.
+2. No host, crie o diretório do cadastro: `install -d -o 1000 -g 1000 ./cadastro`.
+3. Recrie o volume `dcmonitor_node_red_data`: `settings.js` e `flows.json` só são copiados para ele na criação. Para recomeçar sem histórico, recrie também os volumes do InfluxDB; medições antigas não têm as tags `local` e `nome` e não aparecem nos filtros do Grafana.
+4. No `ESP32/include/config.hpp` local, ajuste `VERSAO_FIRMWARE` para `1.5.0` e regrave todas as placas: firmware anterior publica em `attrs` e deixa de ser ingerido.
+
+---
+
 ## [2026-11-24] — ESP32 com deep sleep e transmissão a cada minuto
 
 ### Adicionado
