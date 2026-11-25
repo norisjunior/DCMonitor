@@ -23,7 +23,8 @@
     "y": 120,
     "wires": [
       [
-        "parse-json"
+        "parse-json",
+        "debug-msg-raw"
       ]
     ]
   },
@@ -100,7 +101,9 @@
     "y": 180,
     "wires": [
       [
-        "send-zabbix"
+        "send-zabbix",
+        "zabbix2-ativo",
+        "debug-msg-zabbix"
       ]
     ]
   },
@@ -116,7 +119,7 @@
     "timeout": 5000,
     "defaultHostname": "",
     "x": 1080,
-    "y": 180,
+    "y": 140,
     "wires": []
   },
   {
@@ -148,6 +151,75 @@
     "statusVal": "",
     "statusType": "auto",
     "x": 370,
+    "y": 260,
+    "wires": []
+  },
+  {
+    "id": "debug-msg-raw",
+    "type": "debug",
+    "z": "dcmonitor-tab",
+    "name": "MSG RAW ESP32",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 360,
+    "y": 180,
+    "wires": []
+  },
+  {
+    "id": "zabbix2-ativo",
+    "type": "function",
+    "z": "dcmonitor-tab",
+    "name": "Zabbix 2 configurado?",
+    "func": "// Segundo servidor Zabbix (ZABBIX_SERVER_2), com os mesmos hosts e itens do\n// primeiro. Sem a variável, os itens não seguem adiante.\nif (!env.get('ZABBIX_SERVER_2')) return null;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1090,
+    "y": 200,
+    "wires": [
+      [
+        "send-zabbix-2"
+      ]
+    ]
+  },
+  {
+    "id": "send-zabbix-2",
+    "type": "zabbix-sender",
+    "z": "dcmonitor-tab",
+    "name": "Enviar ao Zabbix 2",
+    "zabbixServer": "${ZABBIX_SERVER_2}",
+    "zabbixPort": "${ZABBIX_PORT}",
+    "sendTimestamps": false,
+    "withNs": false,
+    "timeout": 5000,
+    "defaultHostname": "",
+    "x": 1310,
+    "y": 200,
+    "wires": []
+  },
+  {
+    "id": "debug-msg-zabbix",
+    "type": "debug",
+    "z": "dcmonitor-tab",
+    "name": "MSG ZABBIX",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1080,
     "y": 260,
     "wires": []
   },
@@ -420,6 +492,344 @@
     "statusType": "auto",
     "x": 370,
     "y": 340,
+    "wires": []
+  },
+  {
+    "id": "credenciais-tab",
+    "type": "tab",
+    "label": "Credenciais MQTT",
+    "disabled": false,
+    "info": "Gera, troca e revoga a senha MQTT de cada dispositivo pelo plugin dynamic security do Mosquitto. Usado pela página /admin/."
+  },
+  {
+    "id": "cred-comentario",
+    "type": "comment",
+    "z": "credenciais-tab",
+    "name": "Credenciais: usuário = device_id, senha gerada aqui, só o hash fica no broker",
+    "info": "A senha volta uma única vez na resposta HTTP para a página /admin/.\nCada dispositivo ganha o papel disp-<device_id>, que só permite publicar em\nfdctmon/<device_id>/data e /status e ler fdctmon/<device_id>/cmd.",
+    "x": 300,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "cred-get",
+    "type": "http in",
+    "z": "credenciais-tab",
+    "name": "GET /api/credenciais",
+    "url": "/api/credenciais",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 170,
+    "y": 100,
+    "wires": [
+      [
+        "cred-listar"
+      ]
+    ]
+  },
+  {
+    "id": "cred-post",
+    "type": "http in",
+    "z": "credenciais-tab",
+    "name": "POST /api/credenciais/:id",
+    "url": "/api/credenciais/:id",
+    "method": "post",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 170,
+    "y": 160,
+    "wires": [
+      [
+        "cred-gerar"
+      ]
+    ]
+  },
+  {
+    "id": "cred-put",
+    "type": "http in",
+    "z": "credenciais-tab",
+    "name": "PUT /api/credenciais/:id (trocar)",
+    "url": "/api/credenciais/:id",
+    "method": "put",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 170,
+    "y": 190,
+    "wires": [
+      [
+        "cred-trocar"
+      ]
+    ]
+  },
+  {
+    "id": "cred-delete",
+    "type": "http in",
+    "z": "credenciais-tab",
+    "name": "DELETE /api/credenciais/:id",
+    "url": "/api/credenciais/:id",
+    "method": "delete",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 170,
+    "y": 220,
+    "wires": [
+      [
+        "cred-revogar"
+      ]
+    ]
+  },
+  {
+    "id": "cred-listar",
+    "type": "function",
+    "z": "credenciais-tab",
+    "name": "Listar credenciais",
+    "func": "// Somente IDs no formato gerado pelo firmware: nenhum outro cliente do broker\n// (administrador, n8n) pode ser criado, trocado ou apagado por esta API.\nconst DEVICE = /^esp32-[0-9A-F]{12}$/;\nconst TOPICO = '$CONTROL/dynamic-security/v1';\n\nfunction erroHttp(status, mensagem) {\n    msg.statusCode = status;\n    msg.headers = { 'Cache-Control': 'no-store' };\n    msg.payload = { erro: mensagem };\n    return [null, msg];\n}\n\n// Proteção contra CSRF: só a página /admin/ envia este cabeçalho. Um cabeçalho\n// próprio obriga o navegador a um preflight CORS, que o Node-RED não autoriza,\n// então outro site não consegue disparar a requisição com o login em cache.\nfunction origemConfiavel() {\n    const h = (msg.req && msg.req.headers) || {};\n    return h['x-dcmonitor'] === '1';\n}\n\n// Guarda a requisição HTTP até a resposta do broker e devolve a mensagem MQTT.\nfunction enviar(tipo, comandos, extra) {\n    const id = crypto.randomUUID();\n    const pendentes = global.get('pendentesDynsec') || {};\n    pendentes[id] = { msg, tipo, extra: extra || {}, criado: Date.now() };\n    global.set('pendentesDynsec', pendentes);\n    const payload = { commands: comandos.map((c) => ({ ...c, correlationData: id })) };\n    return [{ topic: TOPICO, payload: JSON.stringify(payload) }, null];\n}\n\nif (!origemConfiavel()) return erroHttp(403, 'Requisição recusada: use a página /admin/.');\nreturn enviar('listar', [{ command: 'listClients', verbose: true, count: -1 }]);",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [
+      {
+        "var": "crypto",
+        "module": "crypto"
+      }
+    ],
+    "x": 420,
+    "y": 100,
+    "wires": [
+      [
+        "cred-mqtt-out"
+      ],
+      [
+        "cred-http-response"
+      ]
+    ]
+  },
+  {
+    "id": "cred-gerar",
+    "type": "function",
+    "z": "credenciais-tab",
+    "name": "Gerar credencial",
+    "func": "// Somente IDs no formato gerado pelo firmware: nenhum outro cliente do broker\n// (administrador, n8n) pode ser criado, trocado ou apagado por esta API.\nconst DEVICE = /^esp32-[0-9A-F]{12}$/;\nconst TOPICO = '$CONTROL/dynamic-security/v1';\n\nfunction erroHttp(status, mensagem) {\n    msg.statusCode = status;\n    msg.headers = { 'Cache-Control': 'no-store' };\n    msg.payload = { erro: mensagem };\n    return [null, msg];\n}\n\n// Proteção contra CSRF: só a página /admin/ envia este cabeçalho. Um cabeçalho\n// próprio obriga o navegador a um preflight CORS, que o Node-RED não autoriza,\n// então outro site não consegue disparar a requisição com o login em cache.\nfunction origemConfiavel() {\n    const h = (msg.req && msg.req.headers) || {};\n    return h['x-dcmonitor'] === '1';\n}\n\n// Guarda a requisição HTTP até a resposta do broker e devolve a mensagem MQTT.\nfunction enviar(tipo, comandos, extra) {\n    const id = crypto.randomUUID();\n    const pendentes = global.get('pendentesDynsec') || {};\n    pendentes[id] = { msg, tipo, extra: extra || {}, criado: Date.now() };\n    global.set('pendentesDynsec', pendentes);\n    const payload = { commands: comandos.map((c) => ({ ...c, correlationData: id })) };\n    return [{ topic: TOPICO, payload: JSON.stringify(payload) }, null];\n}\n\nif (!origemConfiavel()) return erroHttp(403, 'Requisição recusada: use a página /admin/.');\nconst id = String((msg.req && msg.req.params && msg.req.params.id) || '');\nif (!DEVICE.test(id)) {\n    return erroHttp(400, `Identificador inválido: \"${id}\". Use o ID mostrado pela placa, como esp32-E0477D077000.`);\n}\n// Uma operação por placa de cada vez: duas gerações simultâneas deixariam\n// valendo só a última senha, sem que a página soubesse qual.\nconst emAndamento = Object.values(global.get('pendentesDynsec') || {})\n    .some((p) => p.extra && p.extra.id === id);\nif (emAndamento) {\n    return erroHttp(409, `Já existe uma operação em andamento para ${id}. Aguarde alguns segundos.`);\n}\nconst papel = `disp-${id}`;\n\n// Senha de 32 caracteres [A-Za-z0-9_-]: cabe na linha da serial sem escape.\nconst senha = crypto.randomBytes(24).toString('base64url');\nconst geradaEm = new Date().toISOString();\nconst criarPapel = {\n    command: 'createRole', rolename: papel, textname: `Dispositivo ${id}`,\n    acls: [\n        { acltype: 'publishClientSend', topic: `fdctmon/${id}/data`, priority: 0, allow: true },\n        { acltype: 'publishClientSend', topic: `fdctmon/${id}/status`, priority: 0, allow: true },\n        { acltype: 'subscribeLiteral', topic: `fdctmon/${id}/cmd`, priority: 0, allow: true },\n        { acltype: 'publishClientReceive', topic: `fdctmon/${id}/cmd`, priority: 0, allow: true }\n    ]\n};\nconst criarCliente = {\n    command: 'createClient', username: id, password: senha,\n    textdescription: `Senha gerada em ${geradaEm}`,\n    roles: [{ rolename: papel, priority: 0 }]\n};\n\nreturn enviar('gerar', [criarPapel, criarCliente], { id, senha, geradaEm });",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [
+      {
+        "var": "crypto",
+        "module": "crypto"
+      }
+    ],
+    "x": 420,
+    "y": 160,
+    "wires": [
+      [
+        "cred-mqtt-out"
+      ],
+      [
+        "cred-http-response"
+      ]
+    ]
+  },
+  {
+    "id": "cred-trocar",
+    "type": "function",
+    "z": "credenciais-tab",
+    "name": "Trocar credencial",
+    "func": "// Somente IDs no formato gerado pelo firmware: nenhum outro cliente do broker\n// (administrador, n8n) pode ser criado, trocado ou apagado por esta API.\nconst DEVICE = /^esp32-[0-9A-F]{12}$/;\nconst TOPICO = '$CONTROL/dynamic-security/v1';\n\nfunction erroHttp(status, mensagem) {\n    msg.statusCode = status;\n    msg.headers = { 'Cache-Control': 'no-store' };\n    msg.payload = { erro: mensagem };\n    return [null, msg];\n}\n\n// Proteção contra CSRF: só a página /admin/ envia este cabeçalho. Um cabeçalho\n// próprio obriga o navegador a um preflight CORS, que o Node-RED não autoriza,\n// então outro site não consegue disparar a requisição com o login em cache.\nfunction origemConfiavel() {\n    const h = (msg.req && msg.req.headers) || {};\n    return h['x-dcmonitor'] === '1';\n}\n\n// Guarda a requisição HTTP até a resposta do broker e devolve a mensagem MQTT.\nfunction enviar(tipo, comandos, extra) {\n    const id = crypto.randomUUID();\n    const pendentes = global.get('pendentesDynsec') || {};\n    pendentes[id] = { msg, tipo, extra: extra || {}, criado: Date.now() };\n    global.set('pendentesDynsec', pendentes);\n    const payload = { commands: comandos.map((c) => ({ ...c, correlationData: id })) };\n    return [{ topic: TOPICO, payload: JSON.stringify(payload) }, null];\n}\n\nif (!origemConfiavel()) return erroHttp(403, 'Requisição recusada: use a página /admin/.');\nconst id = String((msg.req && msg.req.params && msg.req.params.id) || '');\nif (!DEVICE.test(id)) {\n    return erroHttp(400, `Identificador inválido: \"${id}\". Use o ID mostrado pela placa, como esp32-E0477D077000.`);\n}\n// Uma operação por placa de cada vez: duas gerações simultâneas deixariam\n// valendo só a última senha, sem que a página soubesse qual.\nconst emAndamento = Object.values(global.get('pendentesDynsec') || {})\n    .some((p) => p.extra && p.extra.id === id);\nif (emAndamento) {\n    return erroHttp(409, `Já existe uma operação em andamento para ${id}. Aguarde alguns segundos.`);\n}\nconst papel = `disp-${id}`;\n\n// Senha de 32 caracteres [A-Za-z0-9_-]: cabe na linha da serial sem escape.\nconst senha = crypto.randomBytes(24).toString('base64url');\nconst geradaEm = new Date().toISOString();\nconst criarPapel = {\n    command: 'createRole', rolename: papel, textname: `Dispositivo ${id}`,\n    acls: [\n        { acltype: 'publishClientSend', topic: `fdctmon/${id}/data`, priority: 0, allow: true },\n        { acltype: 'publishClientSend', topic: `fdctmon/${id}/status`, priority: 0, allow: true },\n        { acltype: 'subscribeLiteral', topic: `fdctmon/${id}/cmd`, priority: 0, allow: true },\n        { acltype: 'publishClientReceive', topic: `fdctmon/${id}/cmd`, priority: 0, allow: true }\n    ]\n};\nconst criarCliente = {\n    command: 'createClient', username: id, password: senha,\n    textdescription: `Senha gerada em ${geradaEm}`,\n    roles: [{ rolename: papel, priority: 0 }]\n};\n\nreturn enviar('trocar', [\n    { command: 'deleteClient', username: id },\n    { command: 'deleteRole', rolename: papel },\n    criarPapel,\n    criarCliente\n], { id, senha, geradaEm });",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [
+      {
+        "var": "crypto",
+        "module": "crypto"
+      }
+    ],
+    "x": 420,
+    "y": 190,
+    "wires": [
+      [
+        "cred-mqtt-out"
+      ],
+      [
+        "cred-http-response"
+      ]
+    ]
+  },
+  {
+    "id": "cred-revogar",
+    "type": "function",
+    "z": "credenciais-tab",
+    "name": "Revogar credencial",
+    "func": "// Somente IDs no formato gerado pelo firmware: nenhum outro cliente do broker\n// (administrador, n8n) pode ser criado, trocado ou apagado por esta API.\nconst DEVICE = /^esp32-[0-9A-F]{12}$/;\nconst TOPICO = '$CONTROL/dynamic-security/v1';\n\nfunction erroHttp(status, mensagem) {\n    msg.statusCode = status;\n    msg.headers = { 'Cache-Control': 'no-store' };\n    msg.payload = { erro: mensagem };\n    return [null, msg];\n}\n\n// Proteção contra CSRF: só a página /admin/ envia este cabeçalho. Um cabeçalho\n// próprio obriga o navegador a um preflight CORS, que o Node-RED não autoriza,\n// então outro site não consegue disparar a requisição com o login em cache.\nfunction origemConfiavel() {\n    const h = (msg.req && msg.req.headers) || {};\n    return h['x-dcmonitor'] === '1';\n}\n\n// Guarda a requisição HTTP até a resposta do broker e devolve a mensagem MQTT.\nfunction enviar(tipo, comandos, extra) {\n    const id = crypto.randomUUID();\n    const pendentes = global.get('pendentesDynsec') || {};\n    pendentes[id] = { msg, tipo, extra: extra || {}, criado: Date.now() };\n    global.set('pendentesDynsec', pendentes);\n    const payload = { commands: comandos.map((c) => ({ ...c, correlationData: id })) };\n    return [{ topic: TOPICO, payload: JSON.stringify(payload) }, null];\n}\n\nif (!origemConfiavel()) return erroHttp(403, 'Requisição recusada: use a página /admin/.');\nconst id = String((msg.req && msg.req.params && msg.req.params.id) || '');\nif (!DEVICE.test(id)) {\n    return erroHttp(400, `Identificador inválido: \"${id}\". Use o ID mostrado pela placa, como esp32-E0477D077000.`);\n}\n// Uma operação por placa de cada vez: duas gerações simultâneas deixariam\n// valendo só a última senha, sem que a página soubesse qual.\nconst emAndamento = Object.values(global.get('pendentesDynsec') || {})\n    .some((p) => p.extra && p.extra.id === id);\nif (emAndamento) {\n    return erroHttp(409, `Já existe uma operação em andamento para ${id}. Aguarde alguns segundos.`);\n}\nconst papel = `disp-${id}`;\n\nreturn enviar('revogar', [\n    { command: 'deleteClient', username: id },\n    { command: 'deleteRole', rolename: papel }\n], { id });",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [
+      {
+        "var": "crypto",
+        "module": "crypto"
+      }
+    ],
+    "x": 420,
+    "y": 220,
+    "wires": [
+      [
+        "cred-mqtt-out"
+      ],
+      [
+        "cred-http-response"
+      ]
+    ]
+  },
+  {
+    "id": "cred-mqtt-out",
+    "type": "mqtt out",
+    "z": "credenciais-tab",
+    "name": "$CONTROL/dynamic-security/v1",
+    "topic": "",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt-internal",
+    "x": 720,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "cred-mqtt-in",
+    "type": "mqtt in",
+    "z": "credenciais-tab",
+    "name": "Respostas do dynamic security",
+    "topic": "$CONTROL/dynamic-security/v1/response",
+    "qos": "1",
+    "datatype": "json",
+    "broker": "mqtt-internal",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 200,
+    "y": 300,
+    "wires": [
+      [
+        "cred-responder"
+      ]
+    ]
+  },
+  {
+    "id": "cred-responder",
+    "type": "function",
+    "z": "credenciais-tab",
+    "name": "Responder comando",
+    "func": "// Resposta do plugin dynamic security: agrupa por correlationData e responde\n// à requisição HTTP que estava pendente.\nconst respostas = (msg.payload && Array.isArray(msg.payload.responses)) ? msg.payload.responses : [];\nconst pendentes = global.get('pendentesDynsec') || {};\nconst NAO_ENCONTRADO = /not found/i;\nconst saidas = [];\n\nconst porId = {};\nfor (const r of respostas) {\n    if (!r.correlationData) continue;\n    (porId[r.correlationData] = porId[r.correlationData] || []).push(r);\n}\n\nfor (const [id, lista] of Object.entries(porId)) {\n    const p = pendentes[id];\n    if (!p) continue;\n    delete pendentes[id];\n    const res = p.msg;\n    res.headers = { 'Cache-Control': 'no-store' };\n    const resposta = (cmd) => lista.find((r) => r.command === cmd) || {};\n\n    if (p.tipo === 'listar') {\n        const r = resposta('listClients');\n        if (r.error) {\n            res.statusCode = 502;\n            res.payload = { erro: `O broker recusou a consulta: ${r.error}` };\n        } else {\n            // Só placas: administrador, n8n e outros clientes do sistema não\n            // aparecem na página, que nem conseguiria alterá-los.\n            const PLACA = /^esp32-[0-9A-F]{12}$/;\n            const clientes = {};\n            for (const c of (r.data && r.data.clients) || []) {\n                if (!c || !PLACA.test(c.username || '')) continue;\n                clientes[c.username] = {\n                    ativo: !c.disabled,\n                    descricao: c.textdescription || ''\n                };\n            }\n            res.statusCode = 200;\n            res.payload = { clientes };\n        }\n    } else if (p.tipo === 'gerar' || p.tipo === 'trocar') {\n        const cliente = resposta('createClient');\n        const papel = resposta('createRole');\n        // Ao criar, um papel que sobrou de operação anterior não é erro: as\n        // permissões dele são sempre as mesmas.\n        const papelFalhou = papel.error && !(p.tipo === 'gerar' && /already exists/i.test(papel.error));\n        if (p.tipo === 'gerar' && cliente.error && /already exists/i.test(cliente.error)) {\n            res.statusCode = 409;\n            res.payload = { erro: `${p.extra.id} já tem senha. Para trocar, use “Trocar senha” na tabela.` };\n        } else if (cliente.error || papelFalhou) {\n            res.statusCode = 502;\n            res.payload = { erro: `O broker não criou a credencial: ${cliente.error || papel.error}` };\n        } else {\n            const { id: dispositivo, senha, geradaEm } = p.extra;\n            res.statusCode = 200;\n            res.payload = {\n                device_id: dispositivo,\n                senha,\n                gerada_em: geradaEm,\n                linha_serial: `credencial ${dispositivo} ${senha}`\n            };\n            node.log(`Credencial MQTT gerada para ${dispositivo}`);\n        }\n    } else if (p.tipo === 'revogar') {\n        const r = resposta('deleteClient');\n        if (r.error && !NAO_ENCONTRADO.test(r.error)) {\n            res.statusCode = 502;\n            res.payload = { erro: `O broker não revogou a credencial: ${r.error}` };\n        } else {\n            res.statusCode = 200;\n            res.payload = { device_id: p.extra.id, revogada: !r.error };\n            node.log(`Credencial MQTT revogada: ${p.extra.id}`);\n        }\n    }\n    saidas.push(res);\n}\n\nglobal.set('pendentesDynsec', pendentes);\nreturn [saidas];",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 460,
+    "y": 300,
+    "wires": [
+      [
+        "cred-http-response"
+      ]
+    ]
+  },
+  {
+    "id": "cred-expirar-tick",
+    "type": "inject",
+    "z": "credenciais-tab",
+    "name": "A cada 2 s",
+    "props": [],
+    "repeat": "2",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 160,
+    "y": 360,
+    "wires": [
+      [
+        "cred-expirar"
+      ]
+    ]
+  },
+  {
+    "id": "cred-expirar",
+    "type": "function",
+    "z": "credenciais-tab",
+    "name": "Expirar comandos",
+    "func": "// Requisição sem resposta do broker dentro do prazo vira 504.\nconst PRAZO_MS = 5000;\nconst pendentes = global.get('pendentesDynsec') || {};\nconst agora = Date.now();\nconst saidas = [];\nfor (const [id, p] of Object.entries(pendentes)) {\n    if (agora - p.criado < PRAZO_MS) continue;\n    delete pendentes[id];\n    const res = p.msg;\n    res.statusCode = 504;\n    res.headers = { 'Cache-Control': 'no-store' };\n    // O comando pode ter sido aplicado mesmo sem resposta: numa troca, a\n    // senha antiga talvez já não valha e a nova se perdeu.\n    res.payload = {\n        erro: p.tipo === 'listar'\n            ? 'O broker MQTT não respondeu. Confira se o Mosquitto está no ar.'\n            : `O broker MQTT não respondeu a tempo e o estado da credencial de ${p.extra.id} é incerto. Recarregue a página; se a placa aparecer com senha, use “Trocar senha” para gerar uma nova.`\n    };\n    saidas.push(res);\n}\nglobal.set('pendentesDynsec', pendentes);\nreturn [saidas];",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 460,
+    "y": 360,
+    "wires": [
+      [
+        "cred-http-response"
+      ]
+    ]
+  },
+  {
+    "id": "cred-http-response",
+    "type": "http response",
+    "z": "credenciais-tab",
+    "name": "Resposta HTTP",
+    "statusCode": "",
+    "headers": {},
+    "x": 740,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "cred-catch",
+    "type": "catch",
+    "z": "credenciais-tab",
+    "name": "Erros das credenciais",
+    "scope": null,
+    "uncaught": false,
+    "x": 170,
+    "y": 420,
+    "wires": [
+      [
+        "cred-erro-debug"
+      ]
+    ]
+  },
+  {
+    "id": "cred-erro-debug",
+    "type": "debug",
+    "z": "credenciais-tab",
+    "name": "Erro nas credenciais",
+    "active": true,
+    "tosidebar": true,
+    "console": true,
+    "tostatus": false,
+    "complete": "error.message",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 400,
+    "y": 420,
     "wires": []
   },
   {

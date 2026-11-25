@@ -1,5 +1,9 @@
 {
   "influxdb-server": {
     "token": "${INFLUXDB_TOKEN}"
+  },
+  "mqtt-internal": {
+    "user": "${MQTT_ADMIN_USER}",
+    "password": "${MQTT_ADMIN_PASSWORD}"
   }
 }
