@@ -4,7 +4,7 @@ O envio ao Zabbix passou para o Node-RED, no mesmo fluxo que grava no InfluxDB. 
 
 O n8n permanece na stack para as automações que ainda não têm regra definida — notificações Telegram, quando limiares e política anti-repetição forem confirmados. Hoje ele não tem workflow ativo.
 
-`flow_zabbix.json` e o `zabbix_sender` embutido na imagem continuam versionados como contingência. Se o workflow for importado e ativado enquanto o fluxo do Node-RED estiver rodando, o Zabbix receberá cada medição duas vezes.
+`flow_zabbix.json` e o `zabbix_sender` embutido na imagem continuam versionados como contingência. O workflow assina `fdctmon/+/data` na porta interna 1884, como o Node-RED. Se o workflow for importado e ativado enquanto o fluxo do Node-RED estiver rodando, o Zabbix receberá cada medição duas vezes.
 
 ## Configuração inicial
 

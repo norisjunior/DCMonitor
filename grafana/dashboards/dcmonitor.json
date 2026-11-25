@@ -1,5 +1,7 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "editable": false,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -7,26 +9,213 @@
   "links": [],
   "panels": [
     {
-      "datasource": { "type": "influxdb", "uid": "dcmonitor-influxdb" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "dcmonitor-influxdb"
+      },
+      "description": "Última medição de cada placa nos últimos 30 dias, independente do intervalo do painel. O ESP32 envia a cada ~60 s: laranja a partir de 3 min sem dados, vermelho a partir de 10 min.",
       "fieldConfig": {
-        "defaults": { "color": { "mode": "thresholds" }, "decimals": 1, "unit": "celsius" },
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "local"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Local"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "nome"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Dispositivo"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "device_id"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "ID"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ultimo"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Última medição"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "temperatura"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Temperatura"
+              },
+              {
+                "id": "unit",
+                "value": "celsius"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "idade_s"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Sem dados há"
+              },
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 180
+                    },
+                    {
+                      "color": "red",
+                      "value": 600
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 7,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"fdctmon\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"ambiente\" and r._field == \"temperatura\")\n  |> group(columns: [\"device_id\"])\n  |> sort(columns: [\"_time\"])\n  |> last()\n  |> filter(fn: (r) => exists r.local and exists r.nome and contains(value: r.local, set: ${local:json}) and contains(value: r.nome, set: ${dispositivo:json}))\n  |> map(fn: (r) => ({local: r.local, nome: r.nome, device_id: r.device_id, ultimo: r._time, idade_s: float(v: int(v: now()) - int(v: r._time)) / 1000000000.0, temperatura: r._value}))\n  |> group()\n  |> sort(columns: [\"idade_s\"], desc: true)",
+          "refId": "A"
+        }
+      ],
+      "title": "Situação das placas",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "dcmonitor-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "unit": "celsius",
+          "displayName": "${__field.labels.nome}"
+        },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
       "id": 1,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
       },
       "targets": [
         {
-          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and r._field == \"temperatura\") |> group(columns: [\"device_id\"]) |> last()",
+          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and r._field == \"temperatura\") |> group(columns: [\"device_id\"]) |> sort(columns: [\"_time\"]) |> last() |> filter(fn: (r) => exists r.local and exists r.nome and contains(value: r.local, set: ${local:json}) and contains(value: r.nome, set: ${dispositivo:json})) |> group(columns: [\"device_id\", \"nome\"])",
           "refId": "A"
         }
       ],
@@ -34,26 +223,49 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "dcmonitor-influxdb" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "dcmonitor-influxdb"
+      },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "thresholds" }, "decimals": 1, "max": 100, "min": 0, "unit": "percent" },
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "max": 100,
+          "min": 0,
+          "unit": "percent",
+          "displayName": "${__field.labels.nome}"
+        },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      },
       "id": 2,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
       },
       "targets": [
         {
-          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and r._field == \"umidade\") |> group(columns: [\"device_id\"]) |> last()",
+          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and r._field == \"umidade\") |> group(columns: [\"device_id\"]) |> sort(columns: [\"_time\"]) |> last() |> filter(fn: (r) => exists r.local and exists r.nome and contains(value: r.local, set: ${local:json}) and contains(value: r.nome, set: ${dispositivo:json})) |> group(columns: [\"device_id\", \"nome\"])",
           "refId": "A"
         }
       ],
@@ -61,26 +273,47 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "dcmonitor-influxdb" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "dcmonitor-influxdb"
+      },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "thresholds" }, "decimals": 1, "unit": "celsius" },
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 1,
+          "unit": "celsius",
+          "displayName": "${__field.labels.nome}"
+        },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
       "id": 3,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
       },
       "targets": [
         {
-          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and r._field == \"indice_calor\") |> group(columns: [\"device_id\"]) |> last()",
+          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and r._field == \"indice_calor\") |> group(columns: [\"device_id\"]) |> sort(columns: [\"_time\"]) |> last() |> filter(fn: (r) => exists r.local and exists r.nome and contains(value: r.local, set: ${local:json}) and contains(value: r.nome, set: ${dispositivo:json})) |> group(columns: [\"device_id\", \"nome\"])",
           "refId": "A"
         }
       ],
@@ -88,17 +321,55 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "dcmonitor-influxdb" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "dcmonitor-influxdb"
+      },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": false }, "unit": "celsius" },
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "celsius",
+          "displayName": "${__field.labels.nome} · ${__field.labels._field}"
+        },
         "overrides": []
       },
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 8 },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
       "id": 4,
-      "options": { "legend": { "calcs": ["lastNotNull", "min", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "min",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
       "targets": [
         {
-          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and (r._field == \"temperatura\" or r._field == \"indice_calor\")) |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false) |> yield(name: \"mean\")",
+          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and (r._field == \"temperatura\" or r._field == \"indice_calor\")) |> filter(fn: (r) => exists r.local and exists r.nome and contains(value: r.local, set: ${local:json}) and contains(value: r.nome, set: ${dispositivo:json})) |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false) |> yield(name: \"mean\")",
           "refId": "A"
         }
       ],
@@ -106,39 +377,65 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "dcmonitor-influxdb" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "dcmonitor-influxdb"
+      },
       "description": "Potência do sinal Wi-Fi recebida pelo dispositivo. Acima de -70 dBm é bom; abaixo de -80 dBm indica risco de desconexão.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 0,
           "unit": "dBm",
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "orange", "value": -80 },
-              { "color": "green", "value": -70 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": -80
+              },
+              {
+                "color": "green",
+                "value": -70
+              }
             ]
-          }
+          },
+          "displayName": "${__field.labels.nome}"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 20 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 28
+      },
       "id": 5,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
       },
       "targets": [
         {
-          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and r._field == \"rssi\") |> group(columns: [\"device_id\"]) |> last()",
+          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and r._field == \"rssi\") |> group(columns: [\"device_id\"]) |> sort(columns: [\"_time\"]) |> last() |> filter(fn: (r) => exists r.local and exists r.nome and contains(value: r.local, set: ${local:json}) and contains(value: r.nome, set: ${dispositivo:json})) |> group(columns: [\"device_id\", \"nome\"])",
           "refId": "A"
         }
       ],
@@ -146,17 +443,56 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "influxdb", "uid": "dcmonitor-influxdb" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "dcmonitor-influxdb"
+      },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "showPoints": "never", "spanNulls": false }, "decimals": 0, "unit": "dBm" },
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "decimals": 0,
+          "unit": "dBm",
+          "displayName": "${__field.labels.nome}"
+        },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 20 },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 28
+      },
       "id": 6,
-      "options": { "legend": { "calcs": ["lastNotNull", "min", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "min",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
       "targets": [
         {
-          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and r._field == \"rssi\") |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false) |> yield(name: \"mean\")",
+          "query": "from(bucket: \"fdctmon\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"ambiente\" and r._field == \"rssi\") |> filter(fn: (r) => exists r.local and exists r.nome and contains(value: r.local, set: ${local:json}) and contains(value: r.nome, set: ${dispositivo:json})) |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false) |> yield(name: \"mean\")",
           "refId": "A"
         }
       ],
@@ -166,13 +502,76 @@
   ],
   "refresh": "30s",
   "schemaVersion": 41,
-  "tags": ["dcmonitor", "iot"],
-  "templating": { "list": [] },
-  "time": { "from": "now-6h", "to": "now" },
+  "tags": [
+    "dcmonitor",
+    "iot"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "local",
+        "label": "Local",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "dcmonitor-influxdb"
+        },
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"fdctmon\", tag: \"local\", predicate: (r) => r._measurement == \"ambiente\", start: -30d)",
+        "definition": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"fdctmon\", tag: \"local\", predicate: (r) => r._measurement == \"ambiente\", start: -30d)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
+        "name": "dispositivo",
+        "label": "Dispositivo",
+        "type": "query",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "dcmonitor-influxdb"
+        },
+        "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"fdctmon\", tag: \"nome\", predicate: (r) => r._measurement == \"ambiente\" and exists r.local and contains(value: r.local, set: ${local:json}), start: -30d)",
+        "definition": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"fdctmon\", tag: \"nome\", predicate: (r) => r._measurement == \"ambiente\" and exists r.local and contains(value: r.local, set: ${local:json}), start: -30d)",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "sort": 1,
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "DCMonitor - Ambiente",
   "uid": "dcmonitor-ambiente",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

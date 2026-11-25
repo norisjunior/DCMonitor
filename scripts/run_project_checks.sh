@@ -11,6 +11,16 @@ python3 -m json.tool node-red/flows.json >/dev/null
 python3 -m json.tool n8n/flow_zabbix.json >/dev/null
 python3 -m json.tool grafana/dashboards/dcmonitor.json >/dev/null
 
+echo "[node-red] funções do fluxo"
+if command -v node >/dev/null 2>&1; then
+  node scripts/test_node_red_functions.js
+elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD:/w" -w /w --entrypoint node \
+    nodered/node-red:4.1.11 scripts/test_node_red_functions.js
+else
+  echo "[node-red] Node e Docker ausentes; testes das funções não executados"
+fi
+
 echo "[compose] renderização"
 docker compose --env-file .env.example config -q
 

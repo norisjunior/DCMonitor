@@ -49,6 +49,8 @@ cp include/config.example.hpp include/config.hpp
 
 Edite `include/config.hpp` com Wi-Fi, IP do servidor, credenciais MQTT, GPIO, tempo de sono, servidor NTP e versão. Em rede sem saída para a internet, aponte `NTP_SERVIDOR` para o NTP interno. Esse arquivo é ignorado pelo Git. A senha encontrada no protótipo original deve ser considerada exposta e rotacionada.
 
+Como o `config.hpp` é local, uma atualização do repositório não muda a versão que a placa informa. Ao gravar o firmware 1.5.0, ajuste `VERSAO_FIRMWARE` para `"1.5.0"` no seu `config.hpp`, conforme `config.example.hpp`.
+
 ## Compilar e gravar
 
 ```bash
@@ -74,13 +76,13 @@ O firmware é o mesmo em todas as placas. O que as distingue vem do hardware:
 | O que | Valor | Origem |
 |---|---|---|
 | `device_id` | `esp32-18B4C0D8CBB0` | `ESP.getEfuseMac()` |
-| Tópicos MQTT | `fdctmon/{device_id}/attrs` e `/status` | derivados do `device_id` |
-| Client-id MQTT | `{device_id}` | derivado do `device_id` |
+| Tópicos MQTT | `fdctmon/{device_id}/data`, `/status` e `/cmd` (reservado) | derivados do `device_id` |
+| Client-id MQTT | `{device_id}` | derivado do `device_id`; a ACL do broker depende dele |
 | Hostname na rede | `{device_id}` | `WiFi.setHostname()` |
 
-Não há nada por dispositivo em `config.hpp`: gravar uma placa nova é compilar e enviar, sem editar arquivo nem controlar planilha de IDs. O client-id único importa — dois clientes MQTT com o mesmo id derrubam um ao outro em ciclo.
+Não há nada por dispositivo em `config.hpp`: gravar uma placa nova é compilar e enviar, sem editar arquivo nem controlar planilha de IDs. O client-id único importa — dois clientes MQTT com o mesmo id derrubam um ao outro em ciclo. Ele também precisa ser o `device_id`: a ACL do Mosquitto só deixa cada cliente publicar em `fdctmon/{client-id}/...` e descarta sem aviso o que vier fora desse ramo.
 
-Nomes legíveis para o NOC — sala, rack, andar — ficam no servidor, não no firmware: nome visível do host no Zabbix e rótulo no Grafana. Renomear um ponto de medição não exige regravar a placa.
+Nomes legíveis para o NOC — local e nome amigável — ficam no servidor, não no firmware: no cadastro de dispositivos (`http://SERVIDOR:1880/admin/`), que alimenta o Grafana, e no nome visível do host no Zabbix. Renomear um ponto de medição não exige regravar a placa.
 
 ## Ciclo com deep sleep
 
@@ -105,8 +107,9 @@ O monitor serial mostra o boot completo só na partida a frio. Nos despertares a
 
 ## MQTT
 
-- Telemetria: `fdctmon/{device_id}/attrs`, QoS 0, não retida.
+- Telemetria: `fdctmon/{device_id}/data`, QoS 0, não retida. Até o firmware 1.4.0 o tópico era `.../attrs`, que o broker agora nega.
 - Estado: `fdctmon/{device_id}/status`, retido; `online` a cada despertar. A sessão termina com `DISCONNECT` limpo, então o Last Will `offline` só é publicado se a placa falhar no meio de um ciclo. Placa desligada ou sem rede é detectada pela falta de telemetria (gatilho `nodata` no Zabbix), não por este tópico.
+- Comandos: `fdctmon/{device_id}/cmd` está reservado e liberado para leitura na ACL, mas o firmware ainda não assina. Com deep sleep, um comando futuro terá de ser mensagem retida, lida pela placa ao acordar.
 - Publicação: uma por ciclo, a cada ~60 segundos (cerca de 1.400 mensagens/dia por placa).
 - Identidade: derivada do identificador único do chip.
 - Diagnóstico de enlace: `rssi` em dBm, lido de `WiFi.RSSI()` no instante da publicação. Acima de -70 dBm o sinal é bom; abaixo de -80 dBm há risco de desconexão.
@@ -114,7 +117,7 @@ O monitor serial mostra o boot completo só na partida a frio. Nos despertares a
 Exemplo:
 
 ```json
-{"schema_version":1,"device_id":"esp32-A1B2C3D4E5F6","sensor":"DHT22","firmware_version":"1.4.0","temp":24.7,"umid":53.2,"ic":24.6,"rssi":-67}
+{"schema_version":1,"device_id":"esp32-A1B2C3D4E5F6","sensor":"DHT22","firmware_version":"1.5.0","temp":24.7,"umid":53.2,"ic":24.6,"rssi":-67}
 ```
 
 ## Comportamento em falhas

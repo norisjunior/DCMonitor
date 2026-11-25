@@ -2,6 +2,36 @@
 
 > Entradas mais recentes primeiro.
 
+## 2026-11-25 — Tópicos `data`, `status` e `cmd`, sem local no tópico
+
+**Decisão:** A telemetria passa de `fdctmon/{device_id}/attrs` para `fdctmon/{device_id}/data`. `fdctmon/{device_id}/status` continua como está e `fdctmon/{device_id}/cmd` fica reservado para comandos futuros. O local do dispositivo não entra no tópico. Firmware 1.5.0.
+
+**Justificativa:** `attrs` era herança do FIWARE e não descreve o conteúdo. Com o local fora do tópico, o firmware continua igual em toda a frota e uma placa muda de lugar sem ser regravada: o local passa a ser um dado do servidor (cadastro de dispositivos). A versão do contrato segue no payload (`schema_version`), não no tópico.
+
+**Alternativas descartadas:** `fdctmon/{local}/{device_id}/...` com uma credencial MQTT por local, que obriga uma gravação de firmware por local e outra a cada mudança de lugar; convenções como Sparkplug B e Homie, pesadas demais para um sensor por placa.
+
+**Consequências:** O Node-RED assina `fdctmon/+/data` e rejeita payload cujo `device_id` difere do tópico. Placas com firmware anterior a 1.5.0 deixam de ser ingeridas até serem regravadas. Comandos futuros em `cmd` precisarão ser mensagens retidas, lidas pela placa ao acordar, por causa do deep sleep.
+
+## 2026-11-25 — ACL por client-id com credencial única da frota
+
+**Decisão:** A porta 1883 do Mosquitto passa a ter `acl_file`: cada cliente só escreve em `fdctmon/%c/data` e `fdctmon/%c/status` e só lê `fdctmon/%c/cmd`, onde `%c` é o client-id, que o firmware já define como o `device_id`. A credencial MQTT continua única para a frota. A porta interna 1884 não muda.
+
+**Justificativa:** Uma linha `pattern` cobre a frota inteira, sem regra por dispositivo, e é o mesmo princípio das plataformas de IoT gerenciadas (política por identidade do dispositivo). Impede que uma placa com defeito ou mal configurada publique no tópico de outra e bloqueia a leitura do tráfego alheio na porta externa.
+
+**Alternativas descartadas:** Credencial por local, que só ganha sentido com o local no tópico; credencial ou certificado por dispositivo, que daria identidade forte mas exige provisionamento individual, desproporcional à frota atual.
+
+**Consequências:** O client-id é declarado pelo próprio cliente: quem tem a credencial da frota ainda pode se conectar com o client-id de outra placa. A ACL limita erro e abuso casual, não um atacante com a senha. Publicação negada é descartada sem erro para o cliente. Testes com `mosquitto_pub` na 1883 precisam de `-i` igual ao `device_id` do tópico, e `mosquitto_sub` na 1883 não recebe nada; a observação é feita pela 1884, dentro do container.
+
+## 2026-11-25 — Cadastro de dispositivos no host, editado por página servida pelo Node-RED
+
+**Decisão:** O local e o nome amigável de cada `device_id` ficam em `dispositivos.json`, num diretório do host (`CADASTRO_DIR`) montado em `/data/cadastro`. Uma página estática em `/admin/`, servida pelo próprio Node-RED (`httpStatic`), lê e grava o cadastro pela API `GET`/`PUT /api/cadastro` do fluxo, com login próprio (`httpNodeAuth`/`httpStaticAuth`), separado do editor. O fluxo de telemetria grava as tags `local` e `nome` no InfluxDB; placa sem cadastro grava `local=sem-local` e `nome={device_id}`. O Zabbix não muda.
+
+**Justificativa:** O cadastro é dado operacional, não configuração: muda sem deploy e não pertence ao Git. No host, o arquivo é lido, copiado e restaurado sem ferramentas de volume Docker. Servir a página pelo Node-RED evita um serviço novo e deixa quem usa o cadastro (o fluxo) como único responsável por gravá-lo. O controle de revisão no `PUT` impede que duas janelas sobrescrevam uma à outra sem aviso.
+
+**Alternativas descartadas:** Node-RED Dashboard 2.0, que adiciona dependência e lida mal com tabela editável; serviço web próprio (Flask ou similar), fora do escopo desde a saída da plataforma antiga; arquivo versionado no repositório, que exigiria commit e deploy para renomear uma placa; nome visível do Zabbix como fonte, que deixaria o Grafana sem os nomes; credencial MQTT por local como fonte do local (ver decisão de tópicos).
+
+**Consequências:** O diretório precisa existir e pertencer ao UID 1000 antes de subir a stack. `CADASTRO_ADMIN_PASSWORD_HASH` é obrigatório: sem ele o Node-RED não sobe. A página compartilha a origem do editor, então todo texto do cadastro entra no DOM por `textContent`. Renomear ou mudar o local de uma placa vale para as medições seguintes; no histórico, o trecho anterior fica como série separada, com o nome antigo. A lista de placas vistas fica em memória e se refaz em um ciclo após reiniciar o Node-RED. Substitui, na decisão de 2026-09-17 sobre identidade, a ideia de manter nomes legíveis no Zabbix e no Grafana: o cadastro passa a ser a fonte, e o nome visível do Zabbix pode ser alimentado por ele no futuro.
+
 ## 2026-11-24 — ESP32 em deep sleep com transmissão a cada minuto
 
 **Decisão:** O firmware 1.4.0 passa a trabalhar em ciclos: acorda, lê o DHT22, conecta ao Wi-Fi, publica `online` retido e a telemetria, desconecta com `DISCONNECT` limpo, atualiza o display e dorme 60 s fixos (`TEMPO_SONO_S`). Cada espera de rede tem limite e um watchdog de tarefa reinicia a placa se o ciclo acordado passar de 30 s. O cabeçalho do display ganha o horário da medição, sincronizado por NTP. Substitui D-015 (publicação a cada 30 s) e redefine RF-007.

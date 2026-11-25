@@ -10,3 +10,7 @@ RUN npm install --no-audit --no-fund --no-update-notifier --omit=dev \
 COPY --chown=node-red:root flows.json /data/flows.json
 COPY --chown=node-red:root flows_cred.json /data/flows_cred.json
 COPY --chown=node-red:root settings.js /data/settings.js
+
+# Página de cadastro servida em /admin/ (httpStatic no settings.js). Fica fora
+# de /data para que uma nova imagem sempre traga a versão atual da página.
+COPY --chown=node-red:root admin/ /opt/dcmonitor/admin/

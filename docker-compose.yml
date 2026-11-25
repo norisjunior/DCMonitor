@@ -17,9 +17,13 @@ services:
         mosquitto_passwd -b -c /tmp/mosquitto_passwd "$$MQTT_USERNAME" "$$MQTT_PASSWORD"
         chown mosquitto:mosquitto /tmp/mosquitto_passwd
         chmod 0640 /tmp/mosquitto_passwd
+        cp /mosquitto/config/acl /tmp/mosquitto_acl
+        chown mosquitto:mosquitto /tmp/mosquitto_acl
+        chmod 0640 /tmp/mosquitto_acl
         exec mosquitto -c /mosquitto/config/mosquitto.conf
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro,Z
+      - ./mosquitto/acl:/mosquitto/config/acl:ro,Z
       - mosquitto_data:/mosquitto/data
     healthcheck:
       test: ["CMD", "mosquitto_pub", "-h", "localhost", "-p", "1884", "-t", "dcmonitor/health", "-m", "ok"]
@@ -61,6 +65,8 @@ services:
       NODE_RED_CREDENTIAL_SECRET: ${NODE_RED_CREDENTIAL_SECRET:?NODE_RED_CREDENTIAL_SECRET obrigatorio}
       NODE_RED_ADMIN_USER: ${NODE_RED_ADMIN_USER:-admin}
       NODE_RED_ADMIN_PASSWORD_HASH: ${NODE_RED_ADMIN_PASSWORD_HASH:?NODE_RED_ADMIN_PASSWORD_HASH obrigatorio}
+      CADASTRO_ADMIN_USER: ${CADASTRO_ADMIN_USER:-cadastro}
+      CADASTRO_ADMIN_PASSWORD_HASH: ${CADASTRO_ADMIN_PASSWORD_HASH:?CADASTRO_ADMIN_PASSWORD_HASH obrigatorio}
       INFLUXDB_URL: http://influxdb:8086
       INFLUXDB_ORG: ${INFLUXDB_ORG:-dcmonitor}
       INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:-fdctmon}
@@ -69,6 +75,9 @@ services:
       ZABBIX_PORT: ${ZABBIX_PORT:-10051}
     volumes:
       - node_red_data:/data
+      # Cadastro de dispositivos editado pela página /admin/. Diretório do host,
+      # gravável pelo UID 1000 do container, para backup direto pelo host.
+      - ${CADASTRO_DIR:-./cadastro}:/data/cadastro:Z
     depends_on:
       mosquitto:
         condition: service_healthy

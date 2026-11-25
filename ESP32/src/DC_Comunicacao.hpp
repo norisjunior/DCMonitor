@@ -23,7 +23,7 @@ void configurarIdentidade() {
            static_cast<uint32_t>(chipId));
 
   snprintf(topicoTelemetria, sizeof(topicoTelemetria),
-           "%s/%s/attrs", Config::MQTT_TOPICO_BASE, idDispositivo);
+           "%s/%s/data", Config::MQTT_TOPICO_BASE, idDispositivo);
 
   snprintf(topicoStatus, sizeof(topicoStatus),
            "%s/%s/status", Config::MQTT_TOPICO_BASE, idDispositivo);

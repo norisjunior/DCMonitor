@@ -7,6 +7,9 @@ ESP32 → Mosquitto → Node-RED ┬→ InfluxDB → Grafana
                              └→ Zabbix
 ```
 
+Cada placa publica em `fdctmon/{device_id}/data`. O Node-RED acrescenta o local e
+o nome amigável definidos na página de cadastro (`http://IP_DO_SERVIDOR:1880/admin/`).
+
 ## Subir no Oracle Linux 9
 
 Pré-requisito: Docker com o plugin Compose já instalado.
@@ -28,7 +31,17 @@ openssl rand -hex 32
 docker run --rm -it --entrypoint node-red nodered/node-red:4.1.11 admin hash-pw
 ```
 
-Coloque o hash do Node-RED entre aspas simples no `.env`. Depois:
+O mesmo comando gera os dois hashes: o do editor (`NODE_RED_ADMIN_PASSWORD_HASH`)
+e o da página de cadastro (`CADASTRO_ADMIN_PASSWORD_HASH`), com senhas diferentes.
+Coloque cada hash entre aspas simples no `.env`.
+
+Crie o diretório do cadastro de dispositivos, gravável pelo UID 1000 do Node-RED:
+
+```bash
+sudo install -d -o 1000 -g 1000 ./cadastro
+```
+
+Depois:
 
 ```bash
 docker compose config
@@ -42,6 +55,7 @@ Interfaces:
 |---|---|
 | Grafana | `http://IP_DO_SERVIDOR:3000` |
 | Node-RED | `http://IP_DO_SERVIDOR:1880` |
+| Cadastro de dispositivos | `http://IP_DO_SERVIDOR:1880/admin/` |
 | n8n | `http://IP_DO_SERVIDOR:5678` |
 | InfluxDB | `http://IP_DO_SERVIDOR:8086` |
 | MQTT dos dispositivos | `IP_DO_SERVIDOR:1883` |
@@ -75,18 +89,28 @@ pio run -t upload
 pio device monitor
 ```
 
-O ESP32 usa DHT22 no GPIO 25 e publica a cada 30 segundos. Veja [ESP32/README.md](ESP32/README.md).
+O ESP32 usa DHT22 no GPIO 25 e publica a cada ~60 segundos, em deep sleep entre ciclos. Ao atualizar o firmware, ajuste `VERSAO_FIRMWARE` no seu `config.hpp` (atual: `1.5.0`). Veja [ESP32/README.md](ESP32/README.md).
 
 ## Teste rápido sem hardware
 
 ```bash
-mosquitto_pub -h IP_DO_SERVIDOR -p 1883 \
+mosquitto_pub -h IP_DO_SERVIDOR -p 1883 -i teste-001 \
   -u fdctmon_iot -P 'SENHA_MQTT' \
-  -t fdctmon/teste-001/attrs \
+  -t fdctmon/teste-001/data \
   -m '{"schema_version":1,"device_id":"teste-001","sensor":"DHT22","temp":24.7,"umid":53.2,"ic":24.6}'
 ```
 
-Em até 30 segundos, os dados devem aparecer no dashboard `DCMonitor - Ambiente` do Grafana.
+O `-i teste-001` é obrigatório: a ACL do broker só aceita publicação em
+`fdctmon/{client-id}/...`, e uma mensagem fora desse ramo é descartada sem erro.
+Em até 30 segundos, os dados devem aparecer no dashboard `DCMonitor - Ambiente` do
+Grafana, com local `sem-local` até que a placa seja cadastrada em `/admin/`.
+
+Para ver o tráfego MQTT, assine pela porta interna, de dentro do container (na
+1883 o cliente não tem permissão de leitura em `fdctmon/#`):
+
+```bash
+docker compose exec mosquitto mosquitto_sub -p 1884 -t 'fdctmon/#' -v
+```
 
 ## Operação
 
@@ -105,10 +129,11 @@ Deploy, backup, firewall e rollback: [docs/DEPLOY_PROD.md](docs/DEPLOY_PROD.md).
 ```text
 INICIALIZACAO.md  primeira subida e teste da plataforma no Oracle Linux
 ESP32/       firmware PlatformIO do ESP32/DHT22
-mosquitto/   configuração MQTT
-node-red/    fluxo MQTT → InfluxDB e Zabbix
+mosquitto/   configuração MQTT e ACL dos dispositivos
+node-red/    fluxo MQTT → InfluxDB e Zabbix e página de cadastro
 n8n/         automações futuras; sem workflow ativo
 grafana/     datasource e dashboard provisionados
 docs/        requisitos, arquitetura, segurança e operação
 scripts/     verificações determinísticas
+cadastro/    dispositivos.json (criado no host, fora do Git)
 ```
