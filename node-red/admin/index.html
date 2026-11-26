@@ -20,6 +20,8 @@
     }
   }
   * { box-sizing: border-box; }
+  /* Sem isso, um display definido por classe (ex.: .painel-senha) vence o atributo hidden. */
+  [hidden] { display: none !important; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
     font: 15px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
