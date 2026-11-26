@@ -6,6 +6,18 @@ Mantido pela skill `documentation`.
 
 ---
 
+## [2026-11-26] — Guia de teste no WSL
+
+### Adicionado
+
+- `docs/GUIA_TESTE_WSL.html` — lista marcável para testar a stack com TLS numa máquina WSL antes do servidor; referenciada em `docs/TESTING_LOCAL.md`
+
+### Corrigido
+
+- `node-red/admin/index.html` — o painel da senha MQTT aparecia vazio ao abrir a página e o botão Fechar não o escondia (a classe `.painel-senha` vencia o atributo `hidden`)
+
+---
+
 ## [2026-11-25c] — HTTPS no Node-RED
 
 ### Adicionado

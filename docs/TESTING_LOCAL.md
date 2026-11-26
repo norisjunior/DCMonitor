@@ -116,6 +116,8 @@ Ao terminar, revogue as credenciais de teste e apague as variáveis `SENHA` e `S
 
 ## Placa física
 
+Para o teste completo numa máquina com WSL antes do servidor (certificados com `localhost` e o IP da máquina, portas normais dos serviços, CA no Windows, placa real), siga a lista em [GUIA_TESTE_WSL.html](GUIA_TESTE_WSL.html). Abra o arquivo no navegador: as marcações ficam salvas nele.
+
 1. Copie `ESP32/include/ca_cert.hpp` gerado pelo script, ajuste `MQTT_HOST` para um nome ou IP do certificado e `NTP_SERVIDOR` para o servidor, e grave o firmware.
 2. Sem senha, a placa mostra `Sem credencial` e imprime o ID no monitor serial. Gere a senha em `/admin/` e cole a linha `credencial <device_id> <senha>`. A placa grava, reinicia e publica.
 3. Cole uma linha de outro ID: a placa responde que a linha é de outro dispositivo e continua esperando.

@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DCMonitor · Teste no WSL</title>
+<style>
+  :root {
+    --bg: #f3f6f7; --surface: #ffffff; --ink: #14212a; --muted: #566874; --line: #d6dfe4;
+    --accent: #0b6a86; --accent-soft: #e1f0f5; --ok: #1e7a4c; --ok-soft: #e3f3ea;
+    --warn: #9a5b00; --warn-soft: #fbf0dc; --code: #ebf0f2;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e151a; --surface: #162028; --ink: #e2ebef; --muted: #93a6b2; --line: #2a3944;
+      --accent: #5bb8d4; --accent-soft: #15313b; --ok: #62c391; --ok-soft: #15301f;
+      --warn: #e3a54c; --warn-soft: #36280f; --code: #1d2a33;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 "Segoe UI", system-ui, sans-serif; }
+  .topo { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .topo-in { max-width: 920px; margin: 0 auto; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .topo h1 { font-size: 1.05rem; margin: 0; flex: 1 1 260px; }
+  .barra { flex: 1 1 220px; height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .barra > div { height: 100%; width: 0; background: var(--ok); transition: width .25s; }
+  .contagem { font-family: var(--mono); font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  main { max-width: 920px; margin: 0 auto; padding: 20px 16px 80px; display: grid; gap: 22px; }
+  .intro { color: var(--muted); max-width: 70ch; }
+  .intro p { margin: 0 0 8px; }
+  section.fase { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .fase > header { display: flex; align-items: baseline; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .fase > header h2 { margin: 0; font-size: 1.05rem; flex: 1; }
+  .fase > header .n { font-family: var(--mono); color: var(--accent); font-weight: 600; }
+  .fase > header .st { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+  .fase.concluida > header .st { color: var(--ok); font-weight: 600; }
+  .fase.recolhida > ol { display: none; }
+  ol.passos { list-style: none; margin: 0; padding: 6px 0; }
+  ol.passos > li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 10px 18px; border-bottom: 1px dashed var(--line); }
+  ol.passos > li:last-child { border-bottom: 0; }
+  ol.passos > li.feito .txt > p:first-child { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--muted); }
+  input[type=checkbox] { width: 18px; height: 18px; margin-top: 3px; accent-color: var(--ok); cursor: pointer; }
+  .txt { min-width: 0; display: grid; gap: 6px; }
+  .txt p { margin: 0; }
+  code { font-family: var(--mono); font-size: .88em; background: var(--code); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+  /* min-width: 0 impede que um comando longo alargue o bloco além da tela. */
+  .cmd { min-width: 0; }
+  .cmd pre { margin: 0; background: var(--code); border-radius: 6px; padding: 10px 12px; overflow-x: auto; font-family: var(--mono); font-size: .84rem; line-height: 1.5; }
+  .cmd .onde { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-family: var(--mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 4px; }
+  .cmd .onde button { flex: none; text-transform: none; letter-spacing: 0; font: 600 .75rem/1 "Segoe UI", sans-serif; padding: 5px 10px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+  .nota { background: var(--warn-soft); color: var(--ink); border-left: 3px solid var(--warn); padding: 8px 12px; border-radius: 4px; font-size: .92rem; }
+  .dica { background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 8px 12px; border-radius: 4px; font-size: .92rem; }
+  .esperado { font-size: .9rem; color: var(--muted); }
+  .esperado b { color: var(--ok); font-weight: 600; }
+  .rodape { display: grid; gap: 12px; }
+  textarea { width: 100%; min-height: 110px; font: .9rem/1.5 var(--mono); padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+  .acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .acoes button { font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  h3 { margin: 0; font-size: 1rem; }
+</style>
+</head>
+<body>
+<div class="topo"><div class="topo-in">
+  <h1>DCMonitor · teste no WSL antes do servidor</h1>
+  <div class="barra" aria-hidden="true"><div id="barra"></div></div>
+  <span class="contagem" id="contagem">0/0</span>
+</div></div>
+
+<main>
+  <div class="intro">
+    <p>Ambiente de teste na sua máquina (<code>10.32.9.23</code>), com os quatro PRs juntos (branch <code>feat/https-node-red</code>). O ambiente atual do servidor continua no ar durante todo o teste: ele usa a porta 1883 e o novo usa a 8883. Na sua máquina, a stack usa as portas normais dos serviços; o que ocupar essas portas é parado na fase 4.</p>
+    <p>As marcações ficam salvas neste navegador. Clique no título de uma fase para recolhê-la.</p>
+  </div>
+
+  <section class="fase" data-fase="0">
+    <header><span class="n">0</span><h2>Pré-requisitos no WSL</h2><span class="st"></span></header>
+    <ol class="passos">
+      <li data-id="p-docker"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Docker responde dentro do WSL. Anote se é o <b>Docker Desktop</b> (integração WSL) ou um Docker instalado no próprio WSL: isso muda a fase 6.</p>
+        <div class="cmd"><div class="onde">WSL</div><pre>docker version --format '{{.Server.Os}} / {{.Server.Version}}'
+docker context ls</pre></div>
+        <p class="esperado">Contexto <code>desktop-linux</code> = Docker Desktop.</p>
+      </div></li>
+      <li data-id="p-ferramentas"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Git e OpenSSL instalados.</p>
+        <div class="cmd"><div class="onde">WSL</div><pre>sudo apt update && sudo apt install -y git openssl</pre></div>
+      </div></li>
+    </ol>
+  </section>
+
+  <section class="fase" data-fase="1">
+    <header><span class="n">1</span><h2>Código</h2><span class="st"></span></header>
+    <ol class="passos">
+      <li data-id="c-clone"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Clonar em <code>/FdctIoTPlatform/DCMonitor</code>, no sistema de arquivos do WSL, <b>não</b> em <code>/mnt/c</code>: lá o <code>chown</code> para os UIDs dos containers não funciona.</p>
+        <div class="cmd"><div class="onde">WSL</div><pre>sudo install -d -o "$USER" /FdctIoTPlatform
+git clone https://github.com/norisjunior/DCMonitor.git /FdctIoTPlatform/DCMonitor
+cd /FdctIoTPlatform/DCMonitor
+git checkout feat/https-node-red
+git log --oneline -1</pre></div>
+      </div></li>
+    </ol>
+  </section>
+
+  <section class="fase" data-fase="2">
+    <header><span class="n">2</span><h2>Certificados e diretórios</h2><span class="st"></span></header>
+    <ol class="passos">
+      <li data-id="t-gerar"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Gerar a CA de teste e os certificados do broker e do Node-RED com o IP da sua máquina.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>sudo MQTT_TLS_IPS="10.32.9.23" bash scripts/gerar_certificados.sh</pre></div>
+      </div></li>
+      <li data-id="t-san"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Conferir os nomes no certificado.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>openssl x509 -in pki/mosquitto/server.crt -noout -ext subjectAltName
+ls -ln pki/mosquitto/server.key pki/node-red/server.key</pre></div>
+        <p class="esperado">Esperado: <b>DNS:localhost</b>, <b>DNS:10.32.9.23</b>, <b>IP Address:10.32.9.23</b>; chaves com dono <b>1883</b> e <b>1000</b>.</p>
+      </div></li>
+      <li data-id="t-dirs"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Criar os diretórios de credenciais MQTT e do cadastro.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>sudo install -d -o 1883 -g 1883 ./mqtt-seguranca
+sudo install -d -o 1000 -g 1000 ./cadastro</pre></div>
+      </div></li>
+    </ol>
+  </section>
+
+  <section class="fase" data-fase="3">
+    <header><span class="n">3</span><h2>Arquivo .env</h2><span class="st"></span></header>
+    <ol class="passos">
+      <li data-id="e-copiar"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Criar o <code>.env</code> a partir do exemplo.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>cp .env.example .env && chmod 600 .env</pre></div>
+      </div></li>
+      <li data-id="e-segredos"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Gerar os segredos aleatórios e colar no <code>.env</code>: <code>MQTT_ADMIN_PASSWORD</code>, <code>INFLUXDB_ADMIN_PASSWORD</code>, <code>INFLUXDB_TOKEN</code>, <code>NODE_RED_CREDENTIAL_SECRET</code>, <code>N8N_ENCRYPTION_KEY</code> e <code>GRAFANA_ADMIN_PASSWORD</code>. Rode uma vez para cada um.</p>
+        <div class="cmd"><div class="onde">WSL</div><pre>openssl rand -base64 32</pre></div>
+        <p class="nota">A <code>MQTT_ADMIN_PASSWORD</code> precisa de ao menos 24 caracteres; sem isso o Mosquitto não sobe.</p>
+      </div></li>
+      <li data-id="e-hashes"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Gerar os dois hashes de login: um para o editor do Node-RED (<code>NODE_RED_ADMIN_PASSWORD_HASH</code>) e outro para a página de cadastro (<code>CADASTRO_ADMIN_PASSWORD_HASH</code>). O comando pede a senha; anote as duas senhas originais.</p>
+        <div class="cmd"><div class="onde">WSL</div><pre>docker run --rm -it --entrypoint node-red nodered/node-red:4.1.11 admin hash-pw</pre></div>
+        <p class="nota">No <code>.env</code>, cada hash vai entre aspas simples, por causa dos caracteres <code>$</code>. O login do editor é o usuário <code>admin</code>; o da página de cadastro é o usuário <code>cadastro</code>.</p>
+      </div></li>
+      <li data-id="e-zabbix"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Decidir o Zabbix do teste. Mantendo <code>ZABBIX_SERVER=10.32.8.57</code> e <code>ZABBIX_SERVER_2=10.32.8.69</code>, a placa em teste continua alimentando os hosts reais. Para não enviar nada, deixe os dois vazios e ignore os erros de envio no log.</p>
+      </div></li>
+      <li data-id="e-conferir"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Conferir que não sobrou nenhum <code>TROQUE_</code>.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>grep -n 'TROQUE_' .env || echo "ok, nenhum TROQUE_"</pre></div>
+      </div></li>
+    </ol>
+  </section>
+
+  <section class="fase" data-fase="4">
+    <header><span class="n">4</span><h2>Portas livres</h2><span class="st"></span></header>
+    <ol class="passos">
+      <li data-id="o-portas"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>A stack usa as portas normais: 1880 (Node-RED), 3000 (Grafana), 5678 (n8n), 8086 (InfluxDB) e 8883 (MQTT com TLS). Ver se algum container já ocupa alguma delas.</p>
+        <div class="cmd"><div class="onde">WSL</div><pre>docker ps --format '{{.Names}}\t{{.Ports}}' | grep -E ':(1880|3000|5678|8086|8883)->' || echo "portas livres"</pre></div>
+        <p class="esperado">Esperado: <b>portas livres</b>, ou a lista dos containers que ocupam as portas.</p>
+      </div></li>
+      <li data-id="o-parar"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Parar os containers listados no passo anterior e anotar os nomes no campo do fim da página, para religá-los depois do teste. Troque os nomes pelos da lista.</p>
+        <div class="cmd"><div class="onde">WSL</div><pre>docker stop NOME1 NOME2</pre></div>
+        <p class="dica">Se nenhum container aparece, mas a stack não sobe por porta ocupada, procure um programa do Windows na porta: <code>Get-NetTCPConnection -State Listen -LocalPort 1880,3000,5678,8086,8883</code> no PowerShell.</p>
+      </div></li>
+      <li data-id="o-config"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Conferir que o Compose lê o <code>.env</code> sem erro.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>docker compose config -q && echo "compose ok"</pre></div>
+      </div></li>
+    </ol>
+  </section>
+
+  <section class="fase" data-fase="5">
+    <header><span class="n">5</span><h2>Subir a stack</h2><span class="st"></span></header>
+    <ol class="passos">
+      <li data-id="u-up"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Construir e subir.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>docker compose up -d --build</pre></div>
+      </div></li>
+      <li data-id="u-ps"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Esperar um minuto e conferir que tudo está saudável.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>docker compose ps --format '{{.Service}}  {{.Status}}'</pre></div>
+        <p class="esperado">Esperado: <b>healthy</b> em mosquitto, influxdb, node-red, grafana e n8n.</p>
+      </div></li>
+      <li data-id="u-logs"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Conferir a primeira subida do broker e a conexão do Node-RED.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>docker compose logs mosquitto | grep iniciar
+docker compose logs node-red | grep -E 'Connected to broker|cadastro vazio'</pre></div>
+        <p class="esperado">Esperado: <b>credenciais base criadas</b>, <b>Connected to broker</b> e <b>criando cadastro vazio</b>.</p>
+        <p class="dica">Se o node-red não sobe: <code>docker compose logs node-red | tail -30</code>. Mensagens sobre certificado ou <code>CADASTRO_ADMIN_PASSWORD_HASH</code> apontam o que falta.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section class="fase" data-fase="6">
+    <header><span class="n">6</span><h2>Windows: confiar na CA e abrir a porta 8883</h2><span class="st"></span></header>
+    <ol class="passos">
+      <li data-id="w-copiar-ca"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Copiar o certificado público da CA de teste para a pasta Downloads do Windows. A primeira linha descobre a pasta do seu usuário.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>DESTINO="$(wslpath "$(powershell.exe -NoProfile -Command '$env:USERPROFILE' | tr -d '\r')")/Downloads"
+sudo cp pki/ca/ca.crt "$DESTINO/dcmonitor-ca-teste.crt" && ls -l "$DESTINO/dcmonitor-ca-teste.crt"</pre></div>
+      </div></li>
+      <li data-id="w-instalar-ca"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Instalar como autoridade raiz confiável.</p>
+        <div class="cmd"><div class="onde">PowerShell como administrador</div><pre>certutil -addstore -f Root $env:USERPROFILE\Downloads\dcmonitor-ca-teste.crt</pre></div>
+        <p class="nota">Depois do teste, remova esta CA: <code>certutil -delstore Root "DCMonitor CA"</code>. A do servidor será outra.</p>
+      </div></li>
+      <li data-id="w-firewall"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Liberar a 8883 no firewall do Windows para a placa alcançar o broker.</p>
+        <div class="cmd"><div class="onde">PowerShell como administrador</div><pre>New-NetFirewallRule -DisplayName "DCMonitor MQTT TLS (teste)" -Direction Inbound -Protocol TCP -LocalPort 8883 -Action Allow</pre></div>
+        <p class="dica">Docker instalado dentro do WSL (não Desktop): ative <code>networkingMode=mirrored</code> em <code>%USERPROFILE%\.wslconfig</code> e rode <code>wsl --shutdown</code>, senão a placa não chega à 8883.</p>
+      </div></li>
+      <li data-id="w-porta"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Testar a porta pelo IP da rede.</p>
+        <div class="cmd"><div class="onde">PowerShell</div><pre>Test-NetConnection 10.32.9.23 -Port 8883</pre></div>
+        <p class="esperado">Esperado: <b>TcpTestSucceeded : True</b>.</p>
+      </div></li>
+      <li data-id="w-pagina"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Abrir a página de cadastro. O navegador não pode mostrar aviso de site não seguro.</p>
+        <div class="cmd"><div class="onde">Navegador</div><pre>https://localhost:1880/admin/</pre></div>
+        <p class="nota">Usuário <b><code>cadastro</code></b> (o valor de <code>CADASTRO_ADMIN_USER</code>), não <code>admin</code>. O <code>admin</code> é só do editor, em <code>https://localhost:1880/</code>. Usuário errado responde <i>Unauthorized</i>. Se o navegador não pedir de novo o login, feche todas as janelas dele ou use uma janela anônima.</p>
+        <p class="dica">Para conferir se uma senha bate com o hash do <code>.env</code> sem deixá-la no histórico: <code>read -rs -p "Senha: " S; echo; printf %s "$S" | docker compose exec -T node-red node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(require("bcryptjs").compareSync(d,process.env.CADASTRO_ADMIN_PASSWORD_HASH)))'; unset S</code> (deve mostrar <b>true</b>).</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section class="fase" data-fase="7">
+    <header><span class="n">7</span><h2>Ensaio sem a placa</h2><span class="st"></span></header>
+    <ol class="passos">
+      <li data-id="s-gerar"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Na página, em <b>Placa nova</b>, digite <code>esp32-0000000000A1</code> e clique em <b>Gerar senha</b>. Copie a senha da linha mostrada (o último campo).</p>
+      </div></li>
+      <li data-id="s-publicar"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Publicar uma leitura com essa senha, pelo TLS, de dentro do container do broker. Troque <code>SENHA</code> pela senha copiada.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>docker compose exec mosquitto mosquitto_pub -h localhost -p 8883 --cafile /mosquitto/certs/ca.crt \
+  -u esp32-0000000000A1 -P 'SENHA' -t fdctmon/esp32-0000000000A1/data \
+  -m '{"device_id":"esp32-0000000000A1","sensor":"DHT22","temp":23.4,"umid":51.2}'</pre></div>
+        <p class="esperado">Sem saída = aceito. Na página, a linha da placa passa a mostrar a leitura.</p>
+      </div></li>
+      <li data-id="s-revogar"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Revogar a credencial de ensaio na página (<b>Revogar</b>, dois cliques) e repetir o comando anterior.</p>
+        <p class="esperado">Esperado: <b>not authorised</b>.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section class="fase" data-fase="8">
+    <header><span class="n">8</span><h2>Placa real</h2><span class="st"></span></header>
+    <ol class="passos">
+      <li data-id="b-hpp"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Levar o certificado da CA para o projeto que você compila no Windows. Ajuste o destino para a pasta do seu projeto.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>cp ESP32/include/ca_cert.hpp /mnt/c/GitHub/DCMonitor/ESP32/include/</pre></div>
+      </div></li>
+      <li data-id="b-branch"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>No projeto do Windows, usar a mesma branch do teste.</p>
+        <div class="cmd"><div class="onde">PowerShell · C:\GitHub\DCMonitor</div><pre>git fetch; git checkout feat/https-node-red</pre></div>
+      </div></li>
+      <li data-id="b-config"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Ajustar o <code>ESP32/include/config.hpp</code> local (pode apagar <code>MQTT_USERNAME</code> e <code>MQTT_PASSWORD</code>, que não são mais usados):</p>
+        <div class="cmd"><div class="onde">config.hpp</div><pre>constexpr char MQTT_HOST[] = "10.32.9.23";
+constexpr uint16_t MQTT_PORT = 8883;
+constexpr char NTP_SERVIDOR[] = "pool.ntp.org";
+constexpr char VERSAO_FIRMWARE[] = "1.6.0";</pre></div>
+        <p class="dica">O Windows não serve NTP; use o <code>pool.ntp.org</code> ou o NTP da instituição. O TLS não depende de hora, só o display.</p>
+      </div></li>
+      <li data-id="b-gravar"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Apagar a flash e gravar. Depois, abrir o monitor serial.</p>
+        <div class="cmd"><div class="onde">PowerShell · ESP32</div><pre>pio run -t erase
+pio run -t upload
+pio device monitor</pre></div>
+        <p class="esperado">Esperado no serial: <b>[CREDENCIAL] Este dispositivo ainda não tem senha MQTT</b> com o ID da placa; o OLED mostra <b>Sem credencial</b>. Enter repete as instruções.</p>
+      </div></li>
+      <li data-id="b-senha"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Na página, gerar a senha com o ID mostrado no serial. Clicar em <b>Copiar linha</b>, colar no monitor serial e teclar Enter.</p>
+        <p class="esperado">Esperado: <b>Senha gravada. Reiniciando...</b></p>
+      </div></li>
+      <li data-id="b-publicou"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Acompanhar o primeiro ciclo no serial.</p>
+        <p class="esperado">Esperado: <b>Conectando ao MQTT 10.32.9.23:8883 (TLS)</b>, <b>Publicado em fdctmon/&lt;ID&gt;/data</b> e, em seguida, o deep sleep de 60 s.</p>
+        <p class="dica">Se aparecer <i>credencial recusada</i>: confira se a linha colada é a última gerada. <i>MQTT indisponível</i>: refaça o teste de porta da fase 6.</p>
+      </div></li>
+      <li data-id="b-cadastro"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Na página, criar o local (por exemplo, Biblioteca), dar nome à placa, escolher o local e <b>Salvar alterações</b>.</p>
+      </div></li>
+      <li data-id="b-grafana"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>No Grafana, conferir a placa com o nome amigável e o painel <b>Situação das placas</b>.</p>
+        <div class="cmd"><div class="onde">Navegador</div><pre>http://localhost:3000</pre></div>
+      </div></li>
+      <li data-id="b-sono"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Deixar rodando alguns ciclos: as leituras chegam a cada ~60 s e a coluna <b>Sem dados há</b> fica verde.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section class="fase" data-fase="9">
+    <header><span class="n">9</span><h2>Antes de ir para o servidor</h2><span class="st"></span></header>
+    <ol class="passos">
+      <li data-id="f-anotar"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Anotar no campo abaixo o que precisou de ajuste neste teste, para corrigir no repositório antes da troca.</p>
+      </div></li>
+      <li data-id="f-nova-ca"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Entendido: no servidor, a PKI é gerada do zero, sem <code>MQTT_TLS_IPS</code>. A CA de teste não vai para produção. As placas testadas aqui serão regravadas com o <code>ca_cert.hpp</code> do servidor, com <code>MQTT_HOST</code> do servidor, e recebem senha nova na página do servidor. Credenciais e cadastro do teste não migram.</p>
+      </div></li>
+      <li data-id="f-limpar"><input type="checkbox" aria-label="feito"><div class="txt">
+        <p>Limpar o teste na sua máquina quando terminar: derrubar a stack, religar os containers parados na fase 4 (nomes anotados abaixo), remover a regra de firewall e a CA de teste do Windows.</p>
+        <div class="cmd"><div class="onde">WSL · /FdctIoTPlatform/DCMonitor</div><pre>docker compose down
+docker start NOME1 NOME2</pre></div>
+        <div class="cmd"><div class="onde">PowerShell como administrador</div><pre>Remove-NetFirewallRule -DisplayName "DCMonitor MQTT TLS (teste)"
+certutil -delstore Root "DCMonitor CA"</pre></div>
+      </div></li>
+    </ol>
+  </section>
+
+  <div class="rodape">
+    <h3>Anotações do teste</h3>
+    <textarea id="notas" placeholder="O que deu errado, o que precisou mudar, dúvidas para levar ao servidor..."></textarea>
+    <div class="acoes">
+      <button type="button" id="recolher">Recolher fases concluídas</button>
+      <button type="button" id="limpar">Desmarcar tudo</button>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const CHAVE = "dcmonitor-guia-wsl-v1";
+  let estado = { feitos: {}, recolhidas: {}, notas: "" };
+  try { estado = Object.assign(estado, JSON.parse(localStorage.getItem(CHAVE) || "{}")); } catch (e) {}
+  const salvar = () => { try { localStorage.setItem(CHAVE, JSON.stringify(estado)); } catch (e) {} };
+
+  const passos = [...document.querySelectorAll("li[data-id]")];
+  const fases = [...document.querySelectorAll("section.fase")];
+
+  function atualizar() {
+    let feitos = 0;
+    for (const li of passos) {
+      const ok = !!estado.feitos[li.dataset.id];
+      li.querySelector("input").checked = ok;
+      li.classList.toggle("feito", ok);
+      if (ok) feitos++;
+    }
+    for (const f of fases) {
+      const itens = [...f.querySelectorAll("li[data-id]")];
+      const n = itens.filter((li) => estado.feitos[li.dataset.id]).length;
+      f.querySelector(".st").textContent = n === itens.length ? "concluída" : `${n}/${itens.length}`;
+      f.classList.toggle("concluida", n === itens.length);
+      f.classList.toggle("recolhida", !!estado.recolhidas[f.dataset.fase]);
+    }
+    document.getElementById("contagem").textContent = `${feitos}/${passos.length}`;
+    document.getElementById("barra").style.width = `${(feitos / passos.length) * 100}%`;
+  }
+
+  for (const li of passos) {
+    li.querySelector("input").addEventListener("change", (ev) => {
+      estado.feitos[li.dataset.id] = ev.target.checked;
+      salvar(); atualizar();
+    });
+  }
+  for (const f of fases) {
+    f.querySelector("header").addEventListener("click", () => {
+      estado.recolhidas[f.dataset.fase] = !estado.recolhidas[f.dataset.fase];
+      salvar(); atualizar();
+    });
+  }
+
+  for (const bloco of document.querySelectorAll(".cmd")) {
+    const pre = bloco.querySelector("pre");
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = "Copiar";
+    b.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(pre.textContent);
+        b.textContent = "Copiado";
+      } catch (e) {
+        const r = document.createRange(); r.selectNodeContents(pre);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        b.textContent = "Ctrl+C";
+      }
+      setTimeout(() => { b.textContent = "Copiar"; }, 1500);
+    });
+    bloco.querySelector(".onde").appendChild(b);
+  }
+
+  const notas = document.getElementById("notas");
+  notas.value = estado.notas || "";
+  notas.addEventListener("input", () => { estado.notas = notas.value; salvar(); });
+
+  document.getElementById("recolher").addEventListener("click", () => {
+    for (const f of fases) if (f.classList.contains("concluida")) estado.recolhidas[f.dataset.fase] = true;
+    salvar(); atualizar();
+  });
+  let armado = null;
+  document.getElementById("limpar").addEventListener("click", (ev) => {
+    const b = ev.currentTarget;
+    if (!armado) {
+      b.textContent = "Clique de novo para desmarcar tudo";
+      armado = setTimeout(() => { armado = null; b.textContent = "Desmarcar tudo"; }, 4000);
+      return;
+    }
+    clearTimeout(armado); armado = null; b.textContent = "Desmarcar tudo";
+    estado.feitos = {}; estado.recolhidas = {};
+    salvar(); atualizar();
+  });
+
+  atualizar();
+})();
+</script>
+</body>
+</html>
